@@ -454,12 +454,28 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.set_price(p_value TEXT)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_new_price NUMERIC;
 BEGIN
     IF NOT public.is_admin() THEN RAISE EXCEPTION '无权限：仅管理员可操作'; END IF;
+    v_new_price := p_value::NUMERIC;
+
+    -- 更新配置表
     INSERT INTO public.config (key, value, note, updated_at)
     VALUES ('unit_price', p_value, '当期电单价(元/度)', NOW())
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
+
+    -- 同步更新所有历史抄表记录的单价，并重算每日电费
+    UPDATE public.readings
+    SET unit_price = v_new_price,
+        daily_fee   = round(daily_kwh * v_new_price, 2);
+
+    RETURN jsonb_build_object(
+        'ok', true,
+        'new_price', p_value,
+        'updated_rows', (SELECT count(*) FROM public.readings)
+    );
 END;
 $$;
 

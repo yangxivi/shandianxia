@@ -34,7 +34,7 @@ export default function Devices() {
   const savePrice = async () => {
     try {
       await setPrice(String(price));
-      message.success("电单价已更新，后续核算自动生效");
+      message.success("电单价已更新，所有历史记录的单价与电费已同步重算");
     } catch (e: any) { message.error(errMsg(e)); }
   };
 
@@ -92,7 +92,7 @@ export default function Devices() {
         <Space>
           <InputNumber min={0} step={0.01} value={price} onChange={(v) => setPriceVal(v as number)} addonAfter="元/度" />
           <Button type="primary" onClick={savePrice}>保存单价</Button>
-          <Typography.Text type="secondary">调整后自动适用于后续所有核算数据</Typography.Text>
+          <Typography.Text type="secondary">调整后所有历史抄表记录的单价与电费将同步更新</Typography.Text>
         </Space>
       </Card>
       <Card title="设备 / 电表管理" extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增设备</Button>}>
