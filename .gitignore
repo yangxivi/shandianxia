@@ -15,3 +15,6 @@ frontend/vite.config.d.ts
 # Env
 .env
 .env.local
+
+# 本地运行数据库（任意位置）
+*.db
