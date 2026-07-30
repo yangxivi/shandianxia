@@ -392,7 +392,7 @@ BEGIN
     END IF;
     INSERT INTO public.devices (device_no, device_name, meter_no, multiplier, reader_id)
     VALUES (p_device_no, p_device_name, p_meter_no, COALESCE(p_multiplier, 1.0), p_reader_id);
-    RETURN QUERY SELECT * FROM public.list_devices() WHERE device_no = p_device_no;
+    RETURN QUERY SELECT ld.* FROM public.list_devices() ld WHERE ld.device_no = p_device_no;
 END;
 $$;
 
@@ -420,7 +420,7 @@ BEGIN
     SET device_no = p_device_no, device_name = p_device_name, meter_no = p_meter_no,
         multiplier = COALESCE(p_multiplier, 1.0), reader_id = p_reader_id, updated_at = NOW()
     WHERE id = p_id;
-    RETURN QUERY SELECT * FROM public.list_devices() WHERE id = p_id;
+    RETURN QUERY SELECT ld.* FROM public.list_devices() ld WHERE ld.id = p_id;
 END;
 $$;
 
