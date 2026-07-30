@@ -68,7 +68,8 @@ export default function MeterPage() {
     return <Result status="warning" title="无效的二维码" subTitle="请扫描电表专属二维码进入抄表页面。" />;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  // 以东八区日期为准（与后端 submit_reading 口径一致）
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
 
   if (done) {
     return (
@@ -97,7 +98,7 @@ export default function MeterPage() {
           <Descriptions.Item label="电表编号">{info?.meter_no}</Descriptions.Item>
           <Descriptions.Item label="抄表责任人">{info?.reader_name || "未绑定"}</Descriptions.Item>
           <Descriptions.Item label="昨日读数">
-            {info?.yesterday_reading != null ? `${info.yesterday_reading} 度` : "暂无（首次抄表）"}
+            {info?.yesterday_reading != null ? `${Number(info.yesterday_reading).toFixed(2)} 度` : "暂无（首次抄表）"}
           </Descriptions.Item>
         </Descriptions>
 
