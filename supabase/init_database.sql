@@ -506,6 +506,7 @@ BEGIN
     IF p_role NOT IN ('admin', 'reader') THEN
         RAISE EXCEPTION '角色必须为 admin 或 reader';
     END IF;
+    -- 允许编辑自己的账号
     UPDATE public.profiles
     SET display_name = COALESCE(p_display_name, display_name),
         role         = p_role,
@@ -534,6 +535,7 @@ BEGIN
         RAISE EXCEPTION '密码至少6位';
     END IF;
 
+    -- 允许重置自己的密码
     -- 用 bcrypt 哈希新密码并写入 auth.users（Supabase Auth 兼容）
     UPDATE auth.users
     SET encrypted_password = crypt(p_new_password, gen_salt('bf')),

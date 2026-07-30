@@ -57,9 +57,6 @@ export default function Login() {
         </Form>
         <Divider plain style={{ fontSize: 12 }}>或</Divider>
         <Button block onClick={() => setRegOpen(true)}>注册新账号</Button>
-        <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}>
-          默认管理员 admin / admin123；抄表员 reader01 / reader123（首次使用请先执行种子脚本）
-        </Typography.Paragraph>
       </Card>
 
       <Card title="注册新账号" style={{ width: 360, marginTop: 16, display: regOpen ? "block" : "none" }}>
