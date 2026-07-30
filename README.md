@@ -71,16 +71,24 @@ dianfei/
 - `anon` / `publishable` key（公开密钥，可放前端）
 - `service_role` key（**机密**，仅本地种子脚本使用，**切勿提交**）
 
-### 2) 初始化数据库
-在 Supabase 控制台 **SQL Editor** 中粘贴执行 `supabase/init_database.sql`（一次即可）。
+### 2) 初始化数据库（二选一）
+
+**方式 A · 控制台（最直观）**：在 Supabase 控制台 **SQL Editor** 中粘贴执行 `supabase/init_database.sql`（一次即可）。
 该脚本会建表、开启 RLS、创建全部 RPC 函数，并写入默认电单价 0.85。
 
-### 3) 种子账号与设备（可选，本地运行一次）
+**方式 B · 一键（GitHub Actions）**：本仓库含 `.github/workflows/setup-db.yml`，
+在仓库 **Settings → Secrets** 配置 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY` 后，
+到 **Actions → Setup Supabase DB → Run workflow** 点一次即可自动完成「建库 + 种子」。
+（适合本机网络无法直连 Supabase 的情况——CI 云端运行器可正常访问。）
+
+### 3) 种子账号与设备（可选，二选一）
+- 走方式 B 已自动完成（admin + 30 设备 + 30 抄表员）。
+- 或本地运行一次：
 ```bash
 cd supabase
 export SUPABASE_URL="https://xxxx.supabase.co"
 export SUPABASE_SERVICE_ROLE_KEY="eyJ..."
-npm i @supabase/supabase-js   # 首次
+npm install            # 首次（已附 package.json）
 node seed.mjs
 ```
 脚本创建 `admin / admin123` 与 `reader01 ~ reader30 / reader123`，并生成 30 台设备（一人一码一设备）。
@@ -92,6 +100,10 @@ node seed.mjs
 推送 `main` 即由 GitHub Actions 自动构建并发布到 Pages。
 
 > 也可不执行第 3 步，直接在登录页「注册新账号」逐个人工创建；管理员权限需由已有管理员在 Supabase 中调整。
+
+> ⚠️ **国内访问提示**：Supabase 免费版托管在海外（AWS），部分大陆网络访问 `*.supabase.co` 可能偏慢或不稳定。
+> 若你和 30 位抄表员的网络能正常打开 `qrcts` 等同类站点，则当前架构可直接用；若读者反馈扫码页打不开/数据加载慢，
+> 再考虑国内替代（Supabase 自托管、或前端改连 Cloudflare D1 + Workers）。当前仓库已尽量把配置外置（env-config.js），迁移成本可控。
 
 ---
 

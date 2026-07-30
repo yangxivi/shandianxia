@@ -44,7 +44,7 @@ async function ensureUser(email, password, meta) {
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
-    email_confirm: true,
+    emailConfirm: true, // v2 管理接口用 camelCase；标记为已确认，免邮件验证（项目未配 SMTP）
     user_metadata: meta,
   });
   if (error) throw error;

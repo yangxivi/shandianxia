@@ -1,0 +1,13 @@
+{
+  "name": "shandianxia-supabase-setup",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "闪电侠电费系统 - Supabase 一次性建库与种子（本地或 CI 运行）",
+  "scripts": {
+    "seed": "node seed.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}
