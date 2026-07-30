@@ -129,7 +129,7 @@ export default function AdminLayout() {
             onClick={() => handleNavClick("/admin/summary")}
           >
             <ThunderboltOutlined style={{ color: "#1677ff", fontSize: 20 }} />
-            闪电侠电费
+            闪电侠
           </div>
           <Menu
             theme="dark"
@@ -242,7 +242,7 @@ export default function AdminLayout() {
         }}
       >
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          ⚡ 闪电侠电费管理系统 · Supabase 驱动 · {new Date().toLocaleDateString("zh-CN")}
+          ⚡ 闪电侠 · Supabase 驱动 · {new Date().toLocaleDateString("zh-CN")}
         </Typography.Text>
       </Footer>
     </Layout>
