@@ -208,6 +208,24 @@ export async function listProfiles(): Promise<Profile[]> {
   return (data as Profile[]) || [];
 }
 
+export async function updateProfile(
+  id: string,
+  v: { display_name: string; role: string }
+): Promise<Profile> {
+  const { data, error } = await supabase.rpc("update_profile", {
+    p_id: id,
+    p_display_name: v.display_name,
+    p_role: v.role,
+  });
+  if (error) throw error;
+  return (data as Profile[])[0];
+}
+
+export async function deleteProfile(id: string) {
+  const { error } = await supabase.rpc("delete_profile", { p_id: id });
+  if (error) throw error;
+}
+
 export async function listReadings(params: {
   month?: string;
   device_id?: string;

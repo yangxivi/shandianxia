@@ -4,6 +4,7 @@ import { App as AntApp, Spin } from "antd";
 import Login from "./pages/Login";
 import MeterPage from "./pages/MeterPage";
 import AdminLayout from "./pages/admin/AdminLayout";
+import Accounts from "./pages/admin/Accounts";
 import Devices from "./pages/admin/Devices";
 import Readings from "./pages/admin/Readings";
 import Summary from "./pages/admin/Summary";
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="summary" element={<Summary />} />
           <Route path="devices" element={<Devices />} />
           <Route path="readings" element={<Readings />} />
+          <Route path="accounts" element={<Accounts />} />
           <Route path="qr" element={<QrPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

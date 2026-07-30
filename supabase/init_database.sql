@@ -477,6 +477,59 @@ END;
 $$;
 
 -- ============================================================
+-- 15b. RPC：编辑账号（仅 admin，修改 display_name / role）
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.update_profile(
+    p_id          UUID,
+    p_display_name TEXT,
+    p_role        TEXT
+)
+RETURNS TABLE (id UUID, username TEXT, display_name TEXT, role TEXT)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    IF NOT public.is_admin() THEN RAISE EXCEPTION '无权限：仅管理员可操作'; END IF;
+    IF p_id IS NULL THEN
+        RAISE EXCEPTION '账号ID不能为空';
+    END IF;
+    IF p_role NOT IN ('admin', 'reader') THEN
+        RAISE EXCEPTION '角色必须为 admin 或 reader';
+    END IF;
+    UPDATE public.profiles
+    SET display_name = COALESCE(p_display_name, display_name),
+        role         = p_role,
+        updated_at   = NOW()
+    WHERE id = p_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION '账号不存在';
+    END IF;
+    RETURN QUERY SELECT id, username, display_name, role FROM public.profiles WHERE id = p_id;
+END;
+$$;
+
+-- ============================================================
+-- 15c. RPC：删除账号（仅 admin，删除 profile 记录）
+--     注意：auth.users 中的认证记录需通过 Supabase Auth Admin API 单独清理
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.delete_profile(p_id UUID)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    IF NOT public.is_admin() THEN RAISE EXCEPTION '无权限：仅管理员可操作'; END IF;
+    -- 不允许删除自己
+    IF p_id = auth.uid() THEN
+        RAISE EXCEPTION '不能删除当前登录的账号';
+    END IF;
+    -- 检查是否有关联设备
+    IF EXISTS (SELECT 1 FROM public.devices WHERE reader_id = p_id) THEN
+        RAISE EXCEPTION '该账号仍关联设备，请先解绑设备后再删除';
+    END IF;
+    DELETE FROM public.profiles WHERE id = p_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION '账号不存在';
+    END IF;
+END;
+$$;
+
+-- ============================================================
 -- 16. 执行权限（anon 仅可调用公开 RPC，其余仅 authenticated）
 -- ============================================================
 GRANT EXECUTE ON FUNCTION public.submit_reading(TEXT, NUMERIC) TO anon, authenticated;
@@ -508,6 +561,12 @@ GRANT  EXECUTE ON FUNCTION public.set_price(TEXT) TO authenticated;
 
 REVOKE EXECUTE ON FUNCTION public.list_profiles() FROM anon;
 GRANT  EXECUTE ON FUNCTION public.list_profiles() TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.update_profile(UUID, TEXT, TEXT) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.update_profile(UUID, TEXT, TEXT) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.delete_profile(UUID) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.delete_profile(UUID) TO authenticated;
 
 REVOKE EXECUTE ON FUNCTION public.is_admin() FROM anon;
 GRANT  EXECUTE ON FUNCTION public.is_admin() TO authenticated;

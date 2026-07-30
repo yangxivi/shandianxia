@@ -1,6 +1,6 @@
 import { Layout, Menu, Button, Typography, Avatar, Space } from "antd";
 import {
-  DashboardOutlined, DatabaseOutlined, TableOutlined, QrcodeOutlined, LogoutOutlined, UserOutlined,
+  DashboardOutlined, DatabaseOutlined, TableOutlined, QrcodeOutlined, TeamOutlined, LogoutOutlined, UserOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { logout as supabaseLogout } from "../../api";
@@ -11,6 +11,7 @@ const items = [
   { key: "/admin/summary", icon: <DashboardOutlined />, label: "月度汇总" },
   { key: "/admin/devices", icon: <DatabaseOutlined />, label: "设备与倍率" },
   { key: "/admin/readings", icon: <TableOutlined />, label: "抄表台账" },
+  { key: "/admin/accounts", icon: <TeamOutlined />, label: "账号管理" },
   { key: "/admin/qr", icon: <QrcodeOutlined />, label: "二维码生成" },
 ];
 
