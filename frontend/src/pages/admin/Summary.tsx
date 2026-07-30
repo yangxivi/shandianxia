@@ -50,7 +50,7 @@ export default function Summary() {
     <Card title="月度汇总统计">
       <Row gutter={16} style={{ marginBottom: 16 }} align="middle">
         <Col>
-          <DatePicker picker="month" value={dayjs(month)} onChange={(d) => setMonth(d ? d.format("YYYY-MM") : "")} />
+          <DatePicker picker="month" format="YYYY-MM" value={dayjs(month)} onChange={(d) => setMonth(d ? d.format("YYYY-MM") : "")} />
         </Col>
         <Col>
           <Button type="primary" onClick={load}>统计</Button>

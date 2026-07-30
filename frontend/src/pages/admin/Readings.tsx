@@ -79,7 +79,7 @@ export default function Readings() {
   return (
     <Card title="抄表台账（每日明细）">
       <Space wrap style={{ marginBottom: 12 }}>
-        <DatePicker picker="month" placeholder="月份" value={month ? dayjs(month) : null}
+        <DatePicker picker="month" placeholder="月份" format="YYYY-MM" value={month ? dayjs(month) : null}
           onChange={(d) => setMonth(d ? d.format("YYYY-MM") : "")} />
         <Select placeholder="设备" allowClear style={{ width: 140 }} value={deviceId}
           onChange={setDeviceId} options={devices.map((d) => ({ label: d.device_no, value: d.id }))} />
