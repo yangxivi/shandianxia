@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Typography, Tag,
+  App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Typography, Tag,
 } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
-import { listDevices, listProfiles, getPrice, setPrice, createDevice, Device, Profile, errMsg } from "../../api";
+import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { listDevices, listProfiles, getPrice, setPrice, createDevice, deleteDevice, Device, Profile, errMsg } from "../../api";
 
 export default function Devices() {
   const { message } = App.useApp();
@@ -12,6 +12,7 @@ export default function Devices() {
   const [price, setPriceVal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [form] = Form.useForm();
 
   const load = async () => {
@@ -53,6 +54,21 @@ export default function Devices() {
     } catch (e: any) { message.error(errMsg(e)); }
   };
 
+  // ── 批量删除 ──
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) return;
+    try {
+      for (const id of selectedRowKeys) {
+        await deleteDevice(id as string);
+      }
+      message.success(`已删除 ${selectedRowKeys.length} 台设备`);
+      setSelectedRowKeys([]);
+      load();
+    } catch (e: any) {
+      message.error(errMsg(e));
+    }
+  };
+
   const readerOptions = users.map((u) => ({ label: `${u.display_name}(${u.username})`, value: u.id }));
 
   const columns = [
@@ -69,6 +85,12 @@ export default function Devices() {
     },
   ];
 
+  // 多选配置
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
+  };
+
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       <Card title="当期电单价（元/度）" size="small">
@@ -78,8 +100,37 @@ export default function Devices() {
           <Typography.Text type="secondary">调整后所有历史抄表记录的单价与电费将同步更新</Typography.Text>
         </Space>
       </Card>
-      <Card title="设备 / 电表管理" extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增设备</Button>}>
-        <Table rowKey="id" loading={loading} dataSource={devices} columns={columns} pagination={false} size="small" />
+
+      <Card
+        title="设备 / 电表管理"
+        extra={
+          <Space>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增设备</Button>
+            <Popconfirm
+              title={`确认删除选中的 ${selectedRowKeys.length} 台设备？`}
+              description="删除后关联的抄表记录也将被级联清除，不可恢复。"
+              onConfirm={handleBatchDelete}
+              okText="确认删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              disabled={selectedRowKeys.length === 0}
+            >
+              <Button danger icon={<DeleteOutlined />} disabled={selectedRowKeys.length === 0}>
+                删除选中 ({selectedRowKeys.length})
+              </Button>
+            </Popconfirm>
+          </Space>
+        }
+      >
+        <Table
+          rowKey="id"
+          loading={loading}
+          dataSource={devices}
+          columns={columns}
+          pagination={false}
+          size="small"
+          rowSelection={rowSelection}
+        />
       </Card>
 
       <Modal
