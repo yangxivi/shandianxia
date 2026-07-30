@@ -1,0 +1,22 @@
+name: Diag Supabase
+on:
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: health + sql endpoint
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANON: sb_publishable_rg178EMl9oaLO5J_BFg9og__iVp7Pvw
+        run: |
+          echo "=== GET /rest/v1/ (health) anon ==="
+          curl -s -o /dev/null -w "HTTP %{http_code}\n" "$SUPABASE_URL/rest/v1/" -H "apikey: $ANON"
+          echo "=== POST /rest/v1/sql  SELECT 1 (service_role) ==="
+          curl -s -w "\nHTTP %{http_code}\n" -X POST "$SUPABASE_URL/rest/v1/sql" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H "Content-Type: application/json" \
+            --data '{"query":"SELECT 1 AS ok"}'
+          echo "=== POST /rest/v1/rpc/version? (anon) ==="
+          curl -s -o /dev/null -w "HTTP %{http_code}\n" "$SUPABASE_URL/rest/v1/version" -H "apikey: $ANON"
