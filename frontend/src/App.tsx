@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { App as AntApp } from "antd";
+import { App as AntApp, Spin } from "antd";
 import Login from "./pages/Login";
 import MeterPage from "./pages/MeterPage";
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -7,19 +8,49 @@ import Devices from "./pages/admin/Devices";
 import Readings from "./pages/admin/Readings";
 import Summary from "./pages/admin/Summary";
 import QrPage from "./pages/admin/QrPage";
+import { supabase } from "./lib/supabase";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
-  const token = localStorage.getItem("token");
-  if (!token) return <Navigate to="/login" replace />;
+  const [ready, setReady] = useState(false);
+  const [ok, setOk] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setOk(!!data.session);
+      setReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      setOk(!!s);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (!ready) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <Spin />
+      </div>
+    );
+  }
+  if (!ok) return <Navigate to="/login" replace />;
   return children;
 }
 
 export default function App() {
-  const token = localStorage.getItem("token");
+  const [ready, setReady] = useState(false);
+  const [authed, setAuthed] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setAuthed(!!data.session);
+      setReady(true);
+    });
+  }, []);
+
   return (
     <AntApp>
       <Routes>
-        <Route path="/" element={<Navigate to={token ? "/admin" : "/login"} replace />} />
+        <Route path="/" element={<Navigate to={authed ? "/admin" : "/login"} replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/meter" element={<MeterPage />} />
         <Route

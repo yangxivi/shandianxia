@@ -3,6 +3,7 @@ import {
   DashboardOutlined, DatabaseOutlined, TableOutlined, QrcodeOutlined, LogoutOutlined, UserOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { logout as supabaseLogout } from "../../api";
 
 const { Sider, Header, Content } = Layout;
 
@@ -18,8 +19,8 @@ export default function AdminLayout() {
   const loc = useLocation();
   const sel = items.find((i) => loc.pathname.startsWith(i.key))?.key || "/admin/summary";
 
-  const logout = () => {
-    localStorage.clear();
+  const logout = async () => {
+    await supabaseLogout();
     nav("/login");
   };
 

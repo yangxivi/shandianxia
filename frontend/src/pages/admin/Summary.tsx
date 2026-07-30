@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { App, Button, Card, Col, DatePicker, Row, Statistic, Table, Typography } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { api, errMsg, MonthlyItem } from "../../api";
+import * as XLSX from "xlsx";
+import { monthlySummary, MonthlyItem, errMsg } from "../../api";
 
 export default function Summary() {
   const { message } = App.useApp();
@@ -14,23 +15,27 @@ export default function Summary() {
     if (!month) return;
     setLoading(true);
     try {
-      const r = await api.get("/api/admin/summary/monthly", { params: { month } });
-      setData(r.data);
+      const r = await monthlySummary(month);
+      setData(r);
     } catch (e: any) { message.error(errMsg(e)); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
-  const download = async () => {
-    try {
-      const r = await api.get(`/api/admin/export/monthly?month=${month}`, { responseType: "blob" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([r.data]));
-      a.download = `月度汇总_${month}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch (e: any) { message.error(errMsg(e)); }
+  const download = () => {
+    const rows = (data?.devices || []).map((d) => ({
+      设备编号: d.device_no,
+      设备名称: d.device_name,
+      电表编号: d.meter_no,
+      月度总电量_度: d.total_kwh,
+      月度总电费_元: d.total_fee,
+    }));
+    rows.push({ 设备编号: "全厂合计", 设备名称: "", 电表编号: "", 月度总电量_度: data?.total_kwh ?? 0, 月度总电费_元: data?.total_fee ?? 0 });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "月度汇总");
+    XLSX.writeFile(wb, `月度汇总_${month}.xlsx`);
   };
 
   const columns = [
@@ -69,7 +74,7 @@ export default function Summary() {
       </Row>
       <Table rowKey="device_no" loading={loading} dataSource={data?.devices || []} columns={columns} size="small" pagination={false} />
       <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12 }}>
-        系统按自然月自动汇总每台设备月度总用电量、总电费，并给出 10 台设备整体汇总。
+        系统按自然月自动汇总每台设备月度总用电量、总电费，并给出全厂整体汇总。
       </Typography.Paragraph>
     </Card>
   );

@@ -3,13 +3,13 @@ import {
   App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Typography, Tag,
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
-import { api, errMsg, Device, User } from "../../api";
+import { listDevices, listProfiles, getPrice, setPrice, createDevice, updateDevice, Device, Profile, errMsg } from "../../api";
 
 export default function Devices() {
   const { message } = App.useApp();
   const [devices, setDevices] = useState<Device[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [price, setPrice] = useState<number>(0);
+  const [users, setUsers] = useState<Profile[]>([]);
+  const [price, setPriceVal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Device | null>(null);
@@ -18,14 +18,10 @@ export default function Devices() {
   const load = async () => {
     setLoading(true);
     try {
-      const [d, u, p] = await Promise.all([
-        api.get("/api/admin/devices"),
-        api.get("/api/admin/users"),
-        api.get("/api/admin/price"),
-      ]);
-      setDevices(d.data);
-      setUsers(u.data);
-      setPrice(p.data.unit_price);
+      const [d, u, p] = await Promise.all([listDevices(), listProfiles(), getPrice()]);
+      setDevices(d);
+      setUsers(u);
+      setPriceVal(Number(p));
     } catch (e: any) {
       message.error(errMsg(e));
     } finally {
@@ -37,7 +33,7 @@ export default function Devices() {
 
   const savePrice = async () => {
     try {
-      await api.put("/api/admin/price", { unit_price: price });
+      await setPrice(String(price));
       message.success("电单价已更新，后续核算自动生效");
     } catch (e: any) { message.error(errMsg(e)); }
   };
@@ -59,10 +55,10 @@ export default function Devices() {
     const v = await form.validateFields();
     try {
       if (editing) {
-        await api.put(`/api/admin/devices/${editing.id}`, v);
+        await updateDevice(editing.id, v);
         message.success("设备已更新");
       } else {
-        await api.post("/api/admin/devices", v);
+        await createDevice(v);
         message.success("设备已新增");
       }
       setOpen(false);
@@ -70,7 +66,7 @@ export default function Devices() {
     } catch (e: any) { message.error(errMsg(e)); }
   };
 
-  const readerOptions = users.map((u) => ({ label: `${u.full_name}(${u.username})`, value: u.id }));
+  const readerOptions = users.map((u) => ({ label: `${u.display_name}(${u.username})`, value: u.id }));
 
   const columns = [
     { title: "设备编号", dataIndex: "device_no" },
@@ -94,7 +90,7 @@ export default function Devices() {
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       <Card title="当期电单价（元/度）" size="small">
         <Space>
-          <InputNumber min={0} step={0.01} value={price} onChange={(v) => setPrice(v as number)} addonAfter="元/度" />
+          <InputNumber min={0} step={0.01} value={price} onChange={(v) => setPriceVal(v as number)} addonAfter="元/度" />
           <Button type="primary" onClick={savePrice}>保存单价</Button>
           <Typography.Text type="secondary">调整后自动适用于后续所有核算数据</Typography.Text>
         </Space>

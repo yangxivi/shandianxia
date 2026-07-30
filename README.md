@@ -3,8 +3,9 @@
 面向企业 **30 台生产设备独立电表** 的日常抄表、自动核算与月度汇总系统。替代人工台账，实现
 「一人一码、一设备一电表、每日独立填报、系统自动计算」，杜绝人工计算误差。
 
-> 开发载体说明：本仓库即为可在 WorkBuddy 中落地的**完整可运行实现**，后端 FastAPI + SQLite + JWT，
-> 前端 React18 + TypeScript + Vite + Ant Design 5，与你已有的「应付宝」技术栈一致。
+> **v2 架构（本仓库当前形态）**：参考 `qrcts` 项目的「纯静态前端 + 外链数据库」模式——
+> **前端纯静态托管在 GitHub Pages（免费），数据层用 Supabase（Postgres + Auth + RLS + RPC，免费层）**。
+> 浏览器在 `github.io` 页面上直接跨域调用 `*.supabase.co`，无需任何常驻后端容器，整体 **0 元运行**。
 
 ---
 
@@ -12,25 +13,30 @@
 
 | 需求 | 实现 |
 | --- | --- |
-| 一设备一码一责任人 | 每台电表生成**长期有效专属二维码**（含 JWT 令牌），绑定设备 + 责任人，不可混淆 |
-| 扫码自动填表 | 扫码后自动填充**填报日期 / 设备编号 / 电表编号 / 抄表责任人**，全部只读不可改 |
-| 仅需人工填一项 | 仅「当日电表读数」需人工输入，正数 + 小数校验，禁止空/负提交 |
-| 当日单次填报 | 同一电表当日重复扫码提示「当日已完成抄表，无需重复填报」 |
+| 一设备一码一责任人 | 每台电表生成**长期有效专属二维码**，落地到 GitHub Pages 抄表页，绑定设备（一人一码一设备） |
+| 扫码自动填表 | 扫码后自动填充**填报日期 / 设备编号 / 设备名称 / 电表编号 / 抄表责任人**，全部只读 |
+| 仅需人工填一项 | 仅「当日电表读数」需人工输入，正数校验 |
+| 当日单次填报 | 同一电表当日重复扫码提交 → 提示「当日已完成抄表，无需重复填报」 |
 | 每日电量核算 | `每日电量 = (当日读数 − 昨日读数) × 倍率`（系统自动留存昨日读数） |
-| 每日电费核算 | `每日电费 = 每日电量 × 当期电单价`（单价后台可调，自动生效后续核算） |
+| 每日电费核算 | `每日电费 = 每日电量 × 当期电单价`（单价后台可调，自动生效） |
 | 异常拦截 | 当日读数 < 昨日读数 → 禁止提交，提示「当日读数低于昨日读数，请核对电表数据」 |
 | 每日归档 | 读数/昨日读数/倍率/电量/电费/日期/填报人全部自动入台账 |
-| 月度汇总 | 按自然月汇总单台设备 + 全厂设备整体总电量、总电费 |
+| 月度汇总 | 按自然月汇总单台设备 + 全厂整体总电量、总电费 |
 | 筛选查询 | 后台按设备 / 电表 / 日期 / 月份 / 填报人精准筛选 |
-| Excel 导出 | 每日明细、月度汇总一键导出（财务对账 / 台账存档） |
-| 权限管理 | 抄表员仅能填报本人电表 + 查看本人数据；管理员可改倍率/电价/绑定人/导出/改异常 |
+| Excel 导出 | 每日明细、月度汇总一键导出（浏览器端生成 .xlsx） |
+| 权限管理 | 抄表员仅能查看本人设备数据；管理员可改倍率/电价/绑定人/导出 |
+
+> 所有核算与拦截逻辑均在 Supabase 的 **RPC 函数**（`submit_reading` 等）中完成，
+> 权限由数据库 **RLS + `is_admin()`** 控制，公开抄表走 `anon` 可调用的 RPC，后台操作需登录。
 
 ---
 
 ## 二、技术栈
 
-- **后端**：FastAPI · SQLAlchemy · SQLite · JWT(`python-jose`) · bcrypt · qrcode · openpyxl
-- **前端**：React 18 · TypeScript · Vite · Ant Design 5 · axios · react-router-dom(HashRouter)
+- **前端**：React 18 · TypeScript · Vite · Ant Design 5 · `@supabase/supabase-js` · `qrcode` · `xlsx`
+- **后端/数据**：Supabase（PostgreSQL + Auth + Row Level Security + RPC）
+- **部署**：GitHub Pages（自动部署）+ GitHub Actions
+- **认证**：Supabase Auth（邮箱/密码；账号映射为 `用户名@sd.local`）
 
 ---
 
@@ -38,93 +44,65 @@
 
 ```
 dianfei/
-├── backend/                 # 后端
-│   ├── app/
-│   │   ├── main.py          # 全部接口 + 核算/拦截/导出/二维码逻辑
-│   │   ├── models.py        # User / Device / Reading / Config
-│   │   ├── schemas.py       # Pydantic 契约
-│   │   ├── security.py      # JWT + bcrypt
-│   │   ├── db.py            # 引擎/会话
-│   │   └── seed.py          # 初始化 1 管理员 + 30 设备 + 30 抄表员 + 默认电价
-│   ├── electricity.db       # 运行生成的数据库（已 gitignore）
-│   ├── requirements.txt
-│   └── .env.example
-└── frontend/                # 前端
-    ├── src/
-    │   ├── api.ts
-    │   ├── App.tsx
-    │   ├── pages/Login.tsx           # 后台登录
-    │   ├── pages/MeterPage.tsx       # 公开扫码抄表页
-    │   └── pages/admin/              # 月度汇总/设备倍率/台账/二维码
-    ├── dist/                         # 构建产物（部署到 GitHub Pages）
-    ├── package.json
-    └── .env.example
+├── frontend/                # 前端（部署到 GitHub Pages）
+│   ├── public/env-config.js # 运行时配置：Supabase 地址/密钥/落地地址（改它无需重新构建）
+│   ├── src/
+│   │   ├── lib/supabase.ts  # supabase 客户端初始化
+│   │   ├── api.ts           # 全部数据操作（supabase-js 查询 / RPC 封装）
+│   │   ├── pages/Login.tsx           # 后台登录 / 注册
+│   │   ├── pages/MeterPage.tsx       # 公开扫码抄表页（免登录）
+│   │   └── pages/admin/              # 月度汇总 / 设备倍率 / 台账 / 二维码
+│   ├── package.json
+│   └── index.html
+├── supabase/
+│   ├── init_database.sql    # 建表 + RLS + 全部 RPC 函数（在 Supabase SQL Editor 执行一次）
+│   └── seed.mjs             # 一次性种子：1 管理员 + 30 设备 + 30 抄表员（service_role 运行）
+├── archive/                 # v1 FastAPI 后端（已废弃，仅作历史参考）
+└── .github/workflows/       # GitHub Pages 自动部署
 ```
 
 ---
 
-## 四、本地运行
+## 四、首次部署（三步）
 
-### 1) 后端
+### 1) 创建 Supabase 项目
+到 [supabase.com](https://supabase.com) 新建项目（免费层即可）。记下：
+- Project URL（`https://xxxx.supabase.co`）
+- `anon` / `publishable` key（公开密钥，可放前端）
+- `service_role` key（**机密**，仅本地种子脚本使用，**切勿提交**）
 
+### 2) 初始化数据库
+在 Supabase 控制台 **SQL Editor** 中粘贴执行 `supabase/init_database.sql`（一次即可）。
+该脚本会建表、开启 RLS、创建全部 RPC 函数，并写入默认电单价 0.85。
+
+### 3) 种子账号与设备（可选，本地运行一次）
 ```bash
-cd backend
-python3 -m venv .venv && source .venv/bin/activate   # 可选
-pip install -r requirements.txt
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+cd supabase
+export SUPABASE_URL="https://xxxx.supabase.co"
+export SUPABASE_SERVICE_ROLE_KEY="eyJ..."
+npm i @supabase/supabase-js   # 首次
+node seed.mjs
 ```
+脚本创建 `admin / admin123` 与 `reader01 ~ reader30 / reader123`，并生成 30 台设备（一人一码一设备）。
+已存在则跳过，可重复执行。
 
-首次启动自动建表并写入种子数据。接口文档见 http://127.0.0.1:8000/docs
+### 4) 配置前端并部署
+编辑 `frontend/public/env-config.js`，填入你的 Supabase URL / anon key，以及
+`PUBLIC_BASE_URL`（扫码落地地址，如 `https://你的用户名.github.io/shandianxia/#`）。
+推送 `main` 即由 GitHub Actions 自动构建并发布到 Pages。
 
-### 2) 前端（开发模式）
+> 也可不执行第 3 步，直接在登录页「注册新账号」逐个人工创建；管理员权限需由已有管理员在 Supabase 中调整。
+
+---
+
+## 五、本地开发
 
 ```bash
 cd frontend
 npm install
-npm run dev          # http://localhost:5173 ，已配置 /api 代理到 8000
+npm run dev          # http://localhost:5173
 ```
-
-> 开发模式下二维码链接默认指向 `http://localhost:5173/#/meter?token=...`
-
-### 默认账号
-
-| 角色 | 账号 | 密码 |
-| --- | --- | --- |
-| 管理员 | `admin` | `admin123` |
-| 抄表员01 | `reader01` | `reader123` |
-| … | `reader02` ~ `reader30` | `reader123` |
-
----
-
-## 五、部署
-
-### 前端 → GitHub Pages（自动部署）
-
-仓库已内置 GitHub Actions 工作流 `.github/workflows/deploy-pages.yml`：推送 `main` 即自动构建并发布 `frontend/dist/` 到 Pages。
-
-使用前两步：
-1. 仓库 **Settings → Secrets and variables → Actions → New repository secret**，新建密钥 `VITE_API_BASE`，
-   值为你的后端地址，例如 `https://your-backend.up.railway.app/api`（留空则前端走同域，仅适合前后端同域部署）。
-2. 仓库 **Settings → Pages → Source** 选择 **GitHub Actions**。
-
-> QR 二维码落地地址由后端环境变量 `PUBLIC_BASE_URL` 决定（如 `https://yangxivi.github.io/shandianxia/#`），
-> 需与前端部署地址一致，否则扫码打不开抄表页。
-
-手动构建（本地验证）：`cd frontend && npm run build`（产物 `dist/`，已设 `base: "./"`）。
-
-### 后端 → 任意可公网访问的服务（Railway / Render / 云服务器）
-
-```bash
-# 关键环境变量
-JWT_SECRET=一段足够长的随机字符串
-PUBLIC_BASE_URL=https://你的用户名.github.io/仓库名/#   # 二维码扫码落地地址，注意带 /#
-```
-
-`PUBLIC_BASE_URL` 决定生成的二维码指向哪里（必须带 `/#` 以匹配前端 HashRouter）。
-后端需开放 8000 端口（或反向代理），并配置为常驻进程（如 `uvicorn app.main:app` + supervisor/systemd）。
-
-> 说明：前端为纯静态站点可免费托管于 GitHub Pages；后端为有状态服务，需独立托管（你已在
-> Railway/Render 之间验证过，任选其一常驻即可）。前后端通过 `VITE_API_BASE` 与 `PUBLIC_BASE_URL` 对接。
+前端读取 `public/env-config.js` 连接 Supabase，无需本地后端。
 
 ---
 
@@ -133,15 +111,24 @@ PUBLIC_BASE_URL=https://你的用户名.github.io/仓库名/#   # 二维码扫�
 1. 管理员登录后台 → **设备与倍率**：确认 30 台设备、倍率、绑定抄表责任人（一人一码）。
 2. 管理员 → **二维码生成**：下载/打印每台设备的专属二维码，张贴于对应设备旁。
 3. 抄表员每天到点，用手机扫描**自己负责设备**的二维码 → 系统自动带出日期/设备/责任人 →
-   填写当日读数 → 提交。系统自动算电量、电费并归档。
+   填写当日读数 → 提交。系统自动算电量、电费并归档（逻辑在 Supabase RPC 中执行）。
 4. 管理员 → **抄表台账** 筛选查询、导出 Excel；**月度汇总** 查看/导出全厂与各设备月度数据。
 
 ---
 
 ## 七、业务规则（系统自动，零人工计算）
 
-- 填报日期由服务端取当日，前端只读，杜绝错填/漏填。
+- 填报日期由服务端（Supabase）取当日，前端只读。
 - 每日电量 = (当日读数 − 昨日读数) × 倍率；昨日读数由系统自动留存比对。
-- 每日电费 = 每日电量 × 当期电单价；电价调整后立即作用于后续核算（历史记录保留当时单价快照）。
+- 每日电费 = 每日电量 × 当期电单价；电价调整后立即作用于后续核算。
 - 异常拦截：当日读数 < 昨日读数 → 禁止提交。
-- 同一电表当日仅允许一次填报。
+- 同一电表当日仅允许一次填报（唯一约束 + RPC 拦截）。
+
+---
+
+## 八、安全说明
+
+- `anon` key 设计为可公开在前端；真实权限由数据库 **RLS** 与 RPC 内的 `is_admin()` 保证。
+- 公开抄表 RPC `submit_reading` 仅允许 `anon` 调用，且仅写入读数，不含任何管理操作。
+- 后台增删改 RPC 已 `REVOKE EXECUTE FROM anon`，仅 `authenticated` 可调用并内置管理员校验。
+- `service_role` key 仅在本地种子脚本使用，切勿提交或暴露。

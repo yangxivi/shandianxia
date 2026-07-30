@@ -1,22 +1,24 @@
 import { useEffect, useState } from "react";
 import { App, Button, Card, Empty, Space, Typography } from "antd";
 import { DownloadOutlined, PrinterOutlined } from "@ant-design/icons";
-import { api, errMsg, Device } from "../../api";
+import QRCode from "qrcode";
+import { listDevices, Device, errMsg } from "../../api";
+import { PUBLIC_BASE_URL } from "../../lib/supabase";
 
 export default function QrPage() {
   const { message } = App.useApp();
   const [devices, setDevices] = useState<Device[]>([]);
-  const [imgs, setImgs] = useState<Record<number, string>>({});
+  const [imgs, setImgs] = useState<Record<string, string>>({});
 
   const load = async () => {
     try {
-      const r = await api.get("/api/admin/devices");
-      setDevices(r.data);
-      const map: Record<number, string> = {};
+      const r = await listDevices();
+      setDevices(r);
+      const map: Record<string, string> = {};
       await Promise.all(
-        r.data.map(async (d: Device) => {
-          const qr = await api.get(`/api/admin/qr/${d.id}`, { responseType: "blob" });
-          map[d.id] = URL.createObjectURL(new Blob([qr.data]));
+        r.map(async (d: Device) => {
+          const url = `${PUBLIC_BASE_URL}meter?device=${d.device_no}`;
+          map[d.id] = await QRCode.toDataURL(url, { width: 240, margin: 1 });
         })
       );
       setImgs(map);

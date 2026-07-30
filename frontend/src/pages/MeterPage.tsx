@@ -4,34 +4,41 @@ import {
 } from "antd";
 import { ThunderboltOutlined } from "@ant-design/icons";
 import { useSearchParams } from "react-router-dom";
-import { api, errMsg } from "../api";
+import { fetchDeviceInfo, submitReading, errMsg } from "../api";
+
+interface DeviceInfo {
+  device_no: string;
+  device_name: string;
+  meter_no: string;
+  reader_name: string | null;
+}
 
 export default function MeterPage() {
   const [params] = useSearchParams();
-  const token = params.get("token") || "";
+  const deviceNo = (params.get("device") || params.get("token") || "").toUpperCase();
   const { message } = App.useApp();
-  const [info, setInfo] = useState<any>(null);
+  const [info, setInfo] = useState<DeviceInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<{ kwh: number; fee: number; date: string } | null>(null);
   const [form] = Form.useForm();
 
   useEffect(() => {
-    if (!token) {
+    if (!deviceNo) {
       setLoading(false);
       return;
     }
-    api.get("/api/meter/info", { params: { token } })
-      .then((r) => setInfo(r.data))
+    fetchDeviceInfo(deviceNo)
+      .then((d) => setInfo(d))
       .catch((e) => message.error(errMsg(e)))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [deviceNo]);
 
   const onFinish = async (v: { reading_value: number }) => {
     setSubmitting(true);
     try {
-      const { data } = await api.post("/api/meter/submit", { token, reading_value: v.reading_value });
-      setDone({ kwh: data.daily_kwh, fee: data.daily_fee, date: data.read_date });
+      const r = await submitReading(deviceNo, v.reading_value);
+      setDone({ kwh: r.daily_kwh, fee: r.daily_fee, date: r.read_date });
       message.success("抄表成功，数据已同步后台");
     } catch (e: any) {
       // 重复填报 / 异常拦截 等均在此提示
@@ -49,9 +56,11 @@ export default function MeterPage() {
     );
   }
 
-  if (!token) {
+  if (!deviceNo) {
     return <Result status="warning" title="无效的二维码" subTitle="请扫描电表专属二维码进入抄表页面。" />;
   }
+
+  const today = new Date().toISOString().slice(0, 10);
 
   if (done) {
     return (
@@ -74,11 +83,11 @@ export default function MeterPage() {
       </div>
       <Card style={{ width: "100%", maxWidth: 460 }}>
         <Descriptions column={1} size="small" bordered>
-          <Descriptions.Item label="填报日期">{info?.read_date}（系统自动）</Descriptions.Item>
+          <Descriptions.Item label="填报日期">{today}（系统自动）</Descriptions.Item>
           <Descriptions.Item label="设备编号">{info?.device_no}</Descriptions.Item>
           <Descriptions.Item label="设备名称">{info?.device_name}</Descriptions.Item>
           <Descriptions.Item label="电表编号">{info?.meter_no}</Descriptions.Item>
-          <Descriptions.Item label="抄表责任人">{info?.reader_name}</Descriptions.Item>
+          <Descriptions.Item label="抄表责任人">{info?.reader_name || "未绑定"}</Descriptions.Item>
         </Descriptions>
 
         <Form form={form} onFinish={onFinish} style={{ marginTop: 20 }} size="large">

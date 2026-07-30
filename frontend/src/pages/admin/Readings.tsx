@@ -4,7 +4,8 @@ import {
 } from "antd";
 import { DownloadOutlined, SearchOutlined } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
-import { api, errMsg, Device, Reading, User } from "../../api";
+import * as XLSX from "xlsx";
+import { listReadings, listDevices, listProfiles, Device, Reading, Profile, errMsg } from "../../api";
 
 const { RangePicker } = DatePicker;
 
@@ -12,57 +13,54 @@ export default function Readings() {
   const { message } = App.useApp();
   const [rows, setRows] = useState<Reading[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [month, setMonth] = useState<string>(dayjs().format("YYYY-MM"));
-  const [deviceId, setDeviceId] = useState<number | undefined>();
+  const [deviceId, setDeviceId] = useState<string | undefined>();
   const [meterNo, setMeterNo] = useState<string>("");
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
-  const [readerId, setReaderId] = useState<number | undefined>();
+  const [readerId, setReaderId] = useState<string | undefined>();
 
   const load = async () => {
     setLoading(true);
-    const params: any = { month };
-    if (deviceId) params.device_id = deviceId;
-    if (meterNo) params.meter_no = meterNo;
-    if (readerId) params.reader_id = readerId;
-    if (range) {
-      params.start = range[0].format("YYYY-MM-DD");
-      params.end = range[1].format("YYYY-MM-DD");
-    }
     try {
-      const r = await api.get("/api/admin/readings", { params });
-      setRows(r.data);
+      const r = await listReadings({
+        month,
+        device_id: deviceId,
+        meter_no: meterNo || undefined,
+        reader_id: readerId,
+        start: range ? range[0].format("YYYY-MM-DD") : undefined,
+        end: range ? range[1].format("YYYY-MM-DD") : undefined,
+      });
+      setRows(r);
     } catch (e: any) { message.error(errMsg(e)); }
     finally { setLoading(false); }
   };
 
   useEffect(() => {
-    api.get("/api/admin/devices").then((r) => setDevices(r.data)).catch(() => {});
-    api.get("/api/admin/users").then((r) => setUsers(r.data)).catch(() => {});
+    listDevices().then(setDevices).catch(() => {});
+    listProfiles().then(setUsers).catch(() => {});
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const download = async (url: string, filename: string) => {
-    try {
-      const r = await api.get(url, { params: buildParams(), responseType: "blob" });
-      const blob = new Blob([r.data]);
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch (e: any) { message.error(errMsg(e)); }
-  };
-
-  const buildParams = () => {
-    const p: any = { month };
-    if (deviceId) p.device_id = deviceId;
-    if (meterNo) p.meter_no = meterNo;
-    if (readerId) p.reader_id = readerId;
-    if (range) { p.start = range[0].format("YYYY-MM-DD"); p.end = range[1].format("YYYY-MM-DD"); }
-    return p;
+  const exportXlsx = (name: string) => {
+    const data = rows.map((r) => ({
+      日期: r.read_date,
+      设备: r.device_no,
+      电表: r.meter_no,
+      昨日读数: r.yesterday_value,
+      当日读数: r.reading_value,
+      倍率: r.multiplier,
+      每日电量_度: r.daily_kwh,
+      单价: r.unit_price,
+      每日电费_元: r.daily_fee,
+      抄表人: r.reader_name || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "台账");
+    XLSX.writeFile(wb, name);
   };
 
   const columns = [
@@ -87,22 +85,19 @@ export default function Readings() {
           onChange={setDeviceId} options={devices.map((d) => ({ label: d.device_no, value: d.id }))} />
         <Input placeholder="电表编号" style={{ width: 130 }} value={meterNo} onChange={(e) => setMeterNo(e.target.value)} />
         <Select placeholder="抄表人" allowClear style={{ width: 150 }} value={readerId}
-          onChange={setReaderId} options={users.map((u) => ({ label: u.full_name, value: u.id }))} />
+          onChange={setReaderId} options={users.map((u) => ({ label: u.display_name, value: u.id }))} />
         <RangePicker value={range as any} onChange={(v) => setRange(v as any)} />
         <Button type="primary" icon={<SearchOutlined />} onClick={load}>查询</Button>
       </Space>
       <Space style={{ marginBottom: 12, float: "right" }}>
-        <Button icon={<DownloadOutlined />} onClick={() => download("/api/admin/export/daily", `每日明细_${month}.xlsx`)}>
-          导出每日明细
-        </Button>
-        <Button icon={<DownloadOutlined />} onClick={() => download(`/api/admin/export/monthly?month=${month}`, `月度汇总_${month}.xlsx`)}>
-          导出月度汇总
+        <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(`每日明细_${month}.xlsx`)}>
+          导出 Excel
         </Button>
       </Space>
       <Table rowKey="id" loading={loading} dataSource={rows} columns={columns} size="small"
         scroll={{ x: 900 }} pagination={{ pageSize: 15 }} />
       <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-        筛选支持按设备、电表编号、日期区间、月份、抄表人精准查询。
+        筛选支持按设备、电表编号、日期区间、月份、抄表人精准查询；导出在浏览器端生成 .xlsx。
       </Typography.Paragraph>
     </Card>
   );
