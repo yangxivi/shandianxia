@@ -11,6 +11,7 @@
 // 作用：创建 admin + 30 抄表员账号，并生成 30 台设备（一人一码一设备）
 // 已存在则跳过，可重复执行。
 // ============================================================
+import "./polyfill.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const URL = process.env.SUPABASE_URL;
