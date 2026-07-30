@@ -379,6 +379,7 @@ $$;
 
 -- ============================================================
 -- 13. RPC：设备增删改（仅 admin）
+--     返回 void，避免 RETURNS TABLE 在 Supabase 上产生 column ambiguity
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.create_device(
     p_device_no   TEXT,
@@ -387,10 +388,7 @@ CREATE OR REPLACE FUNCTION public.create_device(
     p_multiplier  NUMERIC,
     p_reader_id   UUID DEFAULT NULL
 )
-RETURNS TABLE (
-    id UUID, device_no TEXT, device_name TEXT, meter_no TEXT,
-    multiplier NUMERIC, reader_id UUID, reader_name TEXT
-) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
     IF NOT public.is_admin() THEN RAISE EXCEPTION '无权限：仅管理员可操作'; END IF;
     IF EXISTS (SELECT 1 FROM public.devices WHERE device_no = p_device_no) THEN
@@ -401,12 +399,6 @@ BEGIN
     END IF;
     INSERT INTO public.devices (device_no, device_name, meter_no, multiplier, reader_id)
     VALUES (p_device_no, p_device_name, p_meter_no, COALESCE(p_multiplier, 1.0), p_reader_id);
-    RETURN QUERY
-    SELECT d.id, d.device_no, d.device_name, d.meter_no, d.multiplier,
-           d.reader_id, COALESCE(p.display_name, '')
-    FROM public.devices d
-    LEFT JOIN public.profiles p ON p.id = d.reader_id
-    WHERE d.device_no = p_device_no;
 END;
 $$;
 
@@ -418,10 +410,7 @@ CREATE OR REPLACE FUNCTION public.update_device(
     p_multiplier  NUMERIC,
     p_reader_id   UUID DEFAULT NULL
 )
-RETURNS TABLE (
-    id UUID, device_no TEXT, device_name TEXT, meter_no TEXT,
-    multiplier NUMERIC, reader_id UUID, reader_name TEXT
-) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
     IF NOT public.is_admin() THEN RAISE EXCEPTION '无权限：仅管理员可操作'; END IF;
     IF EXISTS (SELECT 1 FROM public.devices WHERE device_no = p_device_no AND id <> p_id) THEN
@@ -434,12 +423,7 @@ BEGIN
     SET device_no = p_device_no, device_name = p_device_name, meter_no = p_meter_no,
         multiplier = COALESCE(p_multiplier, 1.0), reader_id = p_reader_id, updated_at = NOW()
     WHERE id = p_id;
-    RETURN QUERY
-    SELECT d.id, d.device_no, d.device_name, d.meter_no, d.multiplier,
-           d.reader_id, COALESCE(p.display_name, '')
-    FROM public.devices d
-    LEFT JOIN public.profiles p ON p.id = d.reader_id
-    WHERE d.id = p_id;
+    IF NOT FOUND THEN RAISE EXCEPTION '设备不存在'; END IF;
 END;
 $$;
 

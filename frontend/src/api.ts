@@ -152,8 +152,8 @@ export async function createDevice(v: {
   meter_no: string;
   multiplier: number;
   reader_id?: string | null;
-}): Promise<Device> {
-  const { data, error } = await supabase.rpc("create_device", {
+}): Promise<void> {
+  const { error } = await supabase.rpc("create_device", {
     p_device_no: v.device_no,
     p_device_name: v.device_name,
     p_meter_no: v.meter_no,
@@ -161,7 +161,6 @@ export async function createDevice(v: {
     p_reader_id: v.reader_id ?? null,
   });
   if (error) throw error;
-  return (data as Device[])[0];
 }
 
 export async function updateDevice(
@@ -172,9 +171,8 @@ export async function updateDevice(
     meter_no: string;
     multiplier: number;
     reader_id?: string | null;
-  }
-): Promise<Device> {
-  const { data, error } = await supabase.rpc("update_device", {
+  }): Promise<void> {
+  const { error } = await supabase.rpc("update_device", {
     p_id: id,
     p_device_no: v.device_no,
     p_device_name: v.device_name,
@@ -183,7 +181,6 @@ export async function updateDevice(
     p_reader_id: v.reader_id ?? null,
   });
   if (error) throw error;
-  return (data as Device[])[0];
 }
 
 export async function deleteDevice(id: string) {
