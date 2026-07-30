@@ -239,22 +239,30 @@ END;
 $$;
 
 -- 公开设备信息（扫码页展示用，不含敏感数据）
+-- 同时返回昨日(最近一次)读数，供前端先期展示与实时拦截
 CREATE OR REPLACE FUNCTION public.device_public_info(p_device_no TEXT)
 RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
     v_dev public.devices%ROWTYPE;
     v_name TEXT;
+    v_today DATE := (NOW() AT TIME ZONE 'Asia/Shanghai')::DATE;
+    v_yesterday NUMERIC;
 BEGIN
     SELECT * INTO v_dev FROM public.devices WHERE device_no = p_device_no;
     IF NOT FOUND THEN
         RAISE EXCEPTION '设备不存在';
     END IF;
     SELECT display_name INTO v_name FROM public.profiles WHERE id = v_dev.reader_id;
+    -- 取昨日(含更早)最近一次读数，与 submit_reading 口径一致
+    SELECT reading_value INTO v_yesterday FROM public.readings
+    WHERE device_id = v_dev.id AND read_date < v_today
+    ORDER BY read_date DESC LIMIT 1;
     RETURN jsonb_build_object(
         'device_no', v_dev.device_no,
         'device_name', v_dev.device_name,
         'meter_no', v_dev.meter_no,
-        'reader_name', v_name
+        'reader_name', v_name,
+        'yesterday_reading', v_yesterday
     );
 END;
 $$;

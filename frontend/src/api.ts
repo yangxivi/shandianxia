@@ -118,6 +118,7 @@ export async function fetchDeviceInfo(deviceNo: string): Promise<{
   device_name: string;
   meter_no: string;
   reader_name: string | null;
+  yesterday_reading: number | null;
 }> {
   const { data, error } = await supabase.rpc("device_public_info", {
     p_device_no: deviceNo,

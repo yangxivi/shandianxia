@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  App, Button, Card, Descriptions, Form, InputNumber, Result, Spin, Typography,
+  Alert, App, Button, Card, Descriptions, Form, InputNumber, Result, Spin, Typography,
 } from "antd";
 import { ThunderboltOutlined } from "@ant-design/icons";
 import { useSearchParams } from "react-router-dom";
@@ -11,6 +11,7 @@ interface DeviceInfo {
   device_name: string;
   meter_no: string;
   reader_name: string | null;
+  yesterday_reading: number | null;
 }
 
 export default function MeterPage() {
@@ -22,6 +23,13 @@ export default function MeterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<{ kwh: number; fee: number; date: string } | null>(null);
   const [form] = Form.useForm();
+  const readingValue = Form.useWatch("reading_value", form);
+
+  // 实时校验：今日读数低于昨日读数时直接拦截（前端先期拦截，服务端再兜底）
+  const belowYesterday =
+    info?.yesterday_reading != null &&
+    readingValue != null &&
+    readingValue < info.yesterday_reading;
 
   useEffect(() => {
     if (!deviceNo) {
@@ -88,6 +96,9 @@ export default function MeterPage() {
           <Descriptions.Item label="设备名称">{info?.device_name}</Descriptions.Item>
           <Descriptions.Item label="电表编号">{info?.meter_no}</Descriptions.Item>
           <Descriptions.Item label="抄表责任人">{info?.reader_name || "未绑定"}</Descriptions.Item>
+          <Descriptions.Item label="昨日读数">
+            {info?.yesterday_reading != null ? `${info.yesterday_reading} 度` : "暂无（首次抄表）"}
+          </Descriptions.Item>
         </Descriptions>
 
         <Form form={form} onFinish={onFinish} style={{ marginTop: 20 }} size="large">
@@ -97,6 +108,14 @@ export default function MeterPage() {
             rules={[
               { required: true, message: "请填写当日读数" },
               { type: "number", min: 0.0001, message: "读数必须为正数" },
+              {
+                validator: (_, val) =>
+                  info?.yesterday_reading != null &&
+                  val != null &&
+                  val < info.yesterday_reading
+                    ? Promise.reject(new Error("当日读数低于昨日读数，请核对电表数据"))
+                    : Promise.resolve(),
+              },
             ]}
           >
             <InputNumber
@@ -108,7 +127,24 @@ export default function MeterPage() {
               addonAfter="度"
             />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block loading={submitting}>
+
+          {belowYesterday && (
+            <Alert
+              type="error"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="当日读数低于昨日读数"
+              description="读数倒走不符合常理，请核对电表实际读数确认无误后再提交。"
+            />
+          )}
+
+          <Button
+            type="primary"
+            htmlType="submit"
+            block
+            loading={submitting}
+            disabled={belowYesterday}
+          >
             保存并提交
           </Button>
         </Form>
