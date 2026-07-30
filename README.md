@@ -98,20 +98,19 @@ npm run dev          # http://localhost:5173 ，已配置 /api 代理到 8000
 
 ## 五、部署
 
-### 前端 → GitHub Pages
+### 前端 → GitHub Pages（自动部署）
 
-```bash
-cd frontend
-npm run build                      # 产物在 dist/ ，已设 base: "./"
-# 将 dist/ 推送到仓库的 gh-pages 分支或 Pages 源
-npx gh-pages -d dist               # 需先 npm i -D gh-pages
-```
+仓库已内置 GitHub Actions 工作流 `.github/workflows/deploy-pages.yml`：推送 `main` 即自动构建并发布 `frontend/dist/` 到 Pages。
 
-配置前端环境变量（前端根目录 `.env`）：
+使用前两步：
+1. 仓库 **Settings → Secrets and variables → Actions → New repository secret**，新建密钥 `VITE_API_BASE`，
+   值为你的后端地址，例如 `https://your-backend.up.railway.app/api`（留空则前端走同域，仅适合前后端同域部署）。
+2. 仓库 **Settings → Pages → Source** 选择 **GitHub Actions**。
 
-```
-VITE_API_BASE=https://你的后端域名/api      # 留空则走同域/代理
-```
+> QR 二维码落地地址由后端环境变量 `PUBLIC_BASE_URL` 决定（如 `https://yangxivi.github.io/shandianxia/#`），
+> 需与前端部署地址一致，否则扫码打不开抄表页。
+
+手动构建（本地验证）：`cd frontend && npm run build`（产物 `dist/`，已设 `base: "./"`）。
 
 ### 后端 → 任意可公网访问的服务（Railway / Render / 云服务器）
 
