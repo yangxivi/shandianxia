@@ -168,6 +168,7 @@ RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
     v_dev          public.devices%ROWTYPE;
     v_prev         public.readings%ROWTYPE;
+    v_today        DATE := (NOW() AT TIME ZONE 'Asia/Shanghai')::DATE;
     v_yesterday    NUMERIC;
     v_kwh          NUMERIC := 0;
     v_price        NUMERIC;
@@ -184,17 +185,17 @@ BEGIN
         RAISE EXCEPTION '设备不存在';
     END IF;
 
-    -- 当日重复填报拦截
+    -- 当日重复填报拦截（以东八区日期为准）
     IF EXISTS (
         SELECT 1 FROM public.readings
-        WHERE device_id = v_dev.id AND read_date = current_date
+        WHERE device_id = v_dev.id AND read_date = v_today
     ) THEN
         RAISE EXCEPTION '当日已完成抄表，无需重复填报';
     END IF;
 
     -- 取上次读数（昨日/历史最近一次）
     SELECT * INTO v_prev FROM public.readings
-    WHERE device_id = v_dev.id AND read_date < current_date
+    WHERE device_id = v_dev.id AND read_date < v_today
     ORDER BY read_date DESC LIMIT 1;
 
     IF FOUND THEN
@@ -222,7 +223,7 @@ BEGIN
         reading_value, yesterday_value, multiplier,
         daily_kwh, unit_price, daily_fee, reader_id, reader_name
     ) VALUES (
-        v_dev.id, v_dev.device_no, v_dev.meter_no, current_date,
+        v_dev.id, v_dev.device_no, v_dev.meter_no, v_today,
         p_reading_value, v_yesterday, v_dev.multiplier,
         v_kwh, v_price, v_fee, v_reader_id, v_reader_name
     );
@@ -230,7 +231,7 @@ BEGIN
     RETURN jsonb_build_object(
         'ok', true,
         'device_no', v_dev.device_no,
-        'read_date', current_date,
+        'read_date', v_today,
         'daily_kwh', v_kwh,
         'daily_fee', v_fee
     );
