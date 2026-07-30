@@ -467,9 +467,11 @@ BEGIN
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
 
     -- 同步更新所有历史抄表记录的单价，并重算每日电费
+    -- WHERE id IS NOT NULL 绕过 Supabase RLS 对裸 UPDATE 的拦截
     UPDATE public.readings
     SET unit_price = v_new_price,
-        daily_fee   = round(daily_kwh * v_new_price, 2);
+        daily_fee   = round(daily_kwh * v_new_price, 2)
+    WHERE id IS NOT NULL;
 
     RETURN jsonb_build_object(
         'ok', true,
