@@ -1,0 +1,112 @@
+import { useEffect, useState } from "react";
+import {
+  App, Button, Card, Descriptions, Form, InputNumber, Result, Spin, Typography,
+} from "antd";
+import { ThunderboltOutlined } from "@ant-design/icons";
+import { useSearchParams } from "react-router-dom";
+import { api, errMsg } from "../api";
+
+export default function MeterPage() {
+  const [params] = useSearchParams();
+  const token = params.get("token") || "";
+  const { message } = App.useApp();
+  const [info, setInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState<{ kwh: number; fee: number; date: string } | null>(null);
+  const [form] = Form.useForm();
+
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    api.get("/api/meter/info", { params: { token } })
+      .then((r) => setInfo(r.data))
+      .catch((e) => message.error(errMsg(e)))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const onFinish = async (v: { reading_value: number }) => {
+    setSubmitting(true);
+    try {
+      const { data } = await api.post("/api/meter/submit", { token, reading_value: v.reading_value });
+      setDone({ kwh: data.daily_kwh, fee: data.daily_fee, date: data.read_date });
+      message.success("抄表成功，数据已同步后台");
+    } catch (e: any) {
+      // 重复填报 / 异常拦截 等均在此提示
+      message.error(errMsg(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <Spin tip="正在解析二维码…" />
+      </div>
+    );
+  }
+
+  if (!token) {
+    return <Result status="warning" title="无效的二维码" subTitle="请扫描电表专属二维码进入抄表页面。" />;
+  }
+
+  if (done) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <Result
+          status="success"
+          title="当日抄表已完成"
+          subTitle={`日期 ${done.date}　每日电量 ${done.kwh} 度　每日电费 ${done.fee} 元`}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f0f2f5", padding: 16, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{ textAlign: "center", margin: "24px 0" }}>
+        <ThunderboltOutlined style={{ fontSize: 36, color: "#1677ff" }} />
+        <Typography.Title level={4} style={{ margin: "8px 0 0" }}>电表每日抄表</Typography.Title>
+        <Typography.Text type="secondary">一人一码 · 系统自动核算</Typography.Text>
+      </div>
+      <Card style={{ width: "100%", maxWidth: 460 }}>
+        <Descriptions column={1} size="small" bordered>
+          <Descriptions.Item label="填报日期">{info?.read_date}（系统自动）</Descriptions.Item>
+          <Descriptions.Item label="设备编号">{info?.device_no}</Descriptions.Item>
+          <Descriptions.Item label="设备名称">{info?.device_name}</Descriptions.Item>
+          <Descriptions.Item label="电表编号">{info?.meter_no}</Descriptions.Item>
+          <Descriptions.Item label="抄表责任人">{info?.reader_name}</Descriptions.Item>
+        </Descriptions>
+
+        <Form form={form} onFinish={onFinish} style={{ marginTop: 20 }} size="large">
+          <Form.Item
+            label="当日电表读数"
+            name="reading_value"
+            rules={[
+              { required: true, message: "请填写当日读数" },
+              { type: "number", min: 0.0001, message: "读数必须为正数" },
+            ]}
+          >
+            <InputNumber
+              style={{ width: "100%" }}
+              placeholder="请实地抄表后填写"
+              min={0}
+              step={0.01}
+              precision={2}
+              addonAfter="度"
+            />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" block loading={submitting}>
+            保存并提交
+          </Button>
+        </Form>
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}>
+          提示：同一电表当日仅可填报一次；若读数低于昨日将自动拦截，请核对电表。
+        </Typography.Paragraph>
+      </Card>
+    </div>
+  );
+}

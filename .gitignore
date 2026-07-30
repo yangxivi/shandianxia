@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+backend/electricity.db
+
+# Node
+node_modules/
+frontend/dist/
+*.local
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# Env
+.env
+.env.local
