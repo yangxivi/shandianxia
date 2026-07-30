@@ -1,4 +1,4 @@
-"""初始化种子数据：管理员 + 10台设备 + 10个抄表责任人 + 默认电价
+"""初始化种子数据：管理员 + 30台设备 + 30个抄表责任人 + 默认电价
 首次启动自动执行；也可 `python -m app.seed` 单独执行。
 """
 from .db import SessionLocal, init_db
@@ -18,8 +18,8 @@ def seed_if_empty():
         )
         db.add(admin)
 
-        # 10 台设备 + 10 个抄表责任人（一人一码一设备）
-        for i in range(1, 11):
+        # N 台设备 + N 个抄表责任人（一人一码一设备）；当前按 30 台初始化
+        for i in range(1, 31):
             no = f"{i:02d}"
             reader = models.User(
                 username=f"reader{no}", full_name=f"抄表员{no}",
@@ -39,7 +39,7 @@ def seed_if_empty():
         # 默认电单价 0.85 元/度
         db.add(models.Config(key="unit_price", value="0.85", note="当期电单价(元/度)"))
         db.commit()
-        print("[seed] 已初始化：1 管理员 + 10 设备 + 10 抄表员 + 默认电价 0.85")
+        print("[seed] 已初始化：1 管理员 + 30 设备 + 30 抄表员 + 默认电价 0.85")
     finally:
         db.close()
 
