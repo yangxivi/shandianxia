@@ -7,8 +7,9 @@
 # 前置：仓库 Settings → Secrets 配置
 #        SUPABASE_URL              例：https://xxxx.supabase.co
 #        SUPABASE_SERVICE_ROLE_KEY 以 sb_secret_ / eyJ 开头（务必保密）
-# 为什么用 CI 执行：本地沙箱网络不通 Supabase（海外节点被拦截），
-#       而 GitHub 云端运行器可正常访问，等价于在本机执行。
+#        SUPABASE_ACCESS_TOKEN     supabase.com → 账户 → Access Tokens 生成的账户级令牌
+# 说明：建库 SQL 通过 Supabase Management API（api.supabase.com/v1/projects/{ref}/database/query）
+#       执行，因为项目 API 的 /rest/v1/sql 端点未公开。种子用 service_role 经 supabase-js 执行。
 # ============================================================
 name: Setup Supabase DB
 
@@ -27,21 +28,21 @@ jobs:
 
       - name: 校验密钥
         run: |
-          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
-            echo "::error::缺少 Secrets：请在仓库 Settings → Secrets 配置 SUPABASE_URL 与 SUPABASE_SERVICE_ROLE_KEY"
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ] || [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
+            echo "::error::缺少 Secrets：请配置 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ACCESS_TOKEN"
             exit 1
           fi
 
-      - name: 执行 init_database.sql（Supabase REST SQL API）
+      - name: 执行 init_database.sql（Management API database/query）
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
+          REF=$(echo "$SUPABASE_URL" | sed -E 's#^https://##; s#\.supabase\.co$##')
+          echo "→ project ref = $REF"
           jq -Rs '{query: .}' supabase/init_database.sql > /tmp/sql_body.json
-          echo "→ POST init_database.sql"
-          curl -fsS -X POST "$SUPABASE_URL/rest/v1/sql" \
-            -H "apikey: $SUPABASE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_KEY" \
+          curl -fsS -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
+            -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
             --data @/tmp/sql_body.json
           echo ""
