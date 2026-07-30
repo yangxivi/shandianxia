@@ -226,6 +226,14 @@ export async function deleteProfile(id: string) {
   if (error) throw error;
 }
 
+export async function resetPassword(id: string, newPassword: string) {
+  const { error } = await supabase.rpc("reset_password", {
+    p_id: id,
+    p_new_password: newPassword,
+  });
+  if (error) throw error;
+}
+
 export async function listReadings(params: {
   month?: string;
   device_id?: string;

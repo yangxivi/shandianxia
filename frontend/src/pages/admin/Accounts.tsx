@@ -3,7 +3,7 @@ import {
   App, Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography,
 } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { listProfiles, updateProfile, deleteProfile, register, Profile, errMsg } from "../../api";
+import { listProfiles, updateProfile, deleteProfile, register, resetPassword, Profile, errMsg } from "../../api";
 
 export default function Accounts() {
   const { message } = App.useApp();
@@ -37,12 +37,13 @@ export default function Accounts() {
     setOpen(true);
   };
 
-  // ── 编辑账号（修改 display_name / role）──
+  // ── 编辑账号（修改 display_name / role / password）──
   const openEdit = (row: Profile) => {
     setEditing(row);
     form.setFieldsValue({
       display_name: row.display_name,
       role: row.role,
+      new_password: undefined,
     });
     setCreating(false);
     setOpen(true);
@@ -61,14 +62,23 @@ export default function Accounts() {
         message.error(errMsg(e));
       }
     } else {
-      // 编辑：走 RPC 更新 profile
+      // 编辑：更新 profile + 可选重置密码
       const v = await form.validateFields();
       try {
+        // 1. 更新显示名称和角色
         await updateProfile(editing!.id, {
           display_name: v.display_name,
           role: v.role,
         });
-        message.success("账号已更新");
+
+        // 2. 如果填写了新密码，同步重置
+        if (v.new_password && v.new_password.trim()) {
+          await resetPassword(editing!.id, v.new_password.trim());
+          message.success("账号已更新，密码已重置");
+        } else {
+          message.success("账号已更新");
+        }
+
         setOpen(false);
         load();
       } catch (e: any) {
@@ -173,9 +183,16 @@ export default function Accounts() {
             />
           </Form.Item>
           {!creating && (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              提示：编辑模式下不可修改用户名和密码。如需重置密码请联系系统管理员通过 Supabase 控制台操作。
-            </Typography.Text>
+            <Form.Item
+              label="重置密码"
+              name="new_password"
+              rules={[
+                { min: 6, message: "密码至少6位" },
+              ]}
+              extra="留空表示不修改密码；填写后将覆盖原密码。"
+            >
+              <Input.Password placeholder="留空不修改，填写则重置为新密码" />
+            </Form.Item>
           )}
         </Form>
       </Modal>

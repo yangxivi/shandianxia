@@ -535,6 +535,33 @@ END;
 $$;
 
 -- ============================================================
+-- 15d. RPC：重置密码（仅 admin，直接更新 auth.users.encrypted_password）
+--     使用 PostgreSQL crypt() + bcrypt 生成与 Supabase Auth 兼容的哈希
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.reset_password(
+    p_id          UUID,
+    p_new_password TEXT
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    IF NOT public.is_admin() THEN RAISE EXCEPTION '无权限：仅管理员可操作'; END IF;
+    IF p_id IS NULL THEN RAISE EXCEPTION '账号ID不能为空'; END IF;
+    IF p_new_password IS NULL OR length(p_new_password) < 6 THEN
+        RAISE EXCEPTION '密码至少6位';
+    END IF;
+
+    -- 用 bcrypt 哈希新密码并写入 auth.users（Supabase Auth 兼容）
+    UPDATE auth.users
+    SET encrypted_password = crypt(p_new_password, gen_salt('bf')),
+        updated_at         = NOW()
+    WHERE id = p_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION '账号不存在';
+    END IF;
+END;
+$$;
+
+-- ============================================================
 -- 15c. RPC：删除账号（仅 admin，删除 profile 记录）
 --     注意：auth.users 中的认证记录需通过 Supabase Auth Admin API 单独清理
 -- ============================================================
@@ -595,6 +622,9 @@ GRANT  EXECUTE ON FUNCTION public.update_profile(UUID, TEXT, TEXT) TO authentica
 
 REVOKE EXECUTE ON FUNCTION public.delete_profile(UUID) FROM anon;
 GRANT  EXECUTE ON FUNCTION public.delete_profile(UUID) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.reset_password(UUID, TEXT) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.reset_password(UUID, TEXT) TO authenticated;
 
 REVOKE EXECUTE ON FUNCTION public.is_admin() FROM anon;
 GRANT  EXECUTE ON FUNCTION public.is_admin() TO authenticated;
