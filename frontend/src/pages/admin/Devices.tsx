@@ -3,7 +3,7 @@ import {
   App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Typography, Tag,
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
-import { listDevices, listProfiles, getPrice, setPrice, createDevice, updateDevice, Device, Profile, errMsg } from "../../api";
+import { listDevices, listProfiles, getPrice, setPrice, createDevice, Device, Profile, errMsg } from "../../api";
 
 export default function Devices() {
   const { message } = App.useApp();
@@ -12,7 +12,6 @@ export default function Devices() {
   const [price, setPriceVal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Device | null>(null);
   const [form] = Form.useForm();
 
   const load = async () => {
@@ -39,28 +38,16 @@ export default function Devices() {
   };
 
   const openCreate = () => {
-    setEditing(null);
     form.resetFields();
     form.setFieldsValue({ multiplier: 1.0 });
-    setOpen(true);
-  };
-
-  const openEdit = (row: Device) => {
-    setEditing(row);
-    form.setFieldsValue(row);
     setOpen(true);
   };
 
   const submit = async () => {
     const v = await form.validateFields();
     try {
-      if (editing) {
-        await updateDevice(editing.id, v);
-        message.success("设备已更新");
-      } else {
-        await createDevice(v);
-        message.success("设备已新增");
-      }
+      await createDevice(v);
+      message.success("设备已新增");
       setOpen(false);
       load();
     } catch (e: any) { message.error(errMsg(e)); }
@@ -80,10 +67,6 @@ export default function Devices() {
       title: "抄表责任人", dataIndex: "reader_name",
       render: (n: string) => n || <Typography.Text type="danger">未绑定</Typography.Text>,
     },
-    {
-      title: "操作", key: "act",
-      render: (_: any, row: Device) => <Button type="link" onClick={() => openEdit(row)}>编辑</Button>,
-    },
   ];
 
   return (
@@ -100,11 +83,12 @@ export default function Devices() {
       </Card>
 
       <Modal
-        title={editing ? "编辑设备" : "新增设备"}
+        title="新增设备"
         open={open}
         onOk={submit}
         onCancel={() => setOpen(false)}
         destroyOnClose
+        okText="创建"
       >
         <Form form={form} layout="vertical">
           <Form.Item label="设备编号" name="device_no" rules={[{ required: true, message: "必填" }]}>
