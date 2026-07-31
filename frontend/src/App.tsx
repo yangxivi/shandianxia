@@ -37,6 +37,55 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
+function RequireAdminInner({ children }: { children: JSX.Element }) {
+  const [ready, setReady] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const { message } = AntApp.useApp();
+
+  useEffect(() => {
+    (async () => {
+      const { data: sdata } = await supabase.auth.getSession();
+      const uid = sdata.session?.user?.id;
+      if (!uid) {
+        setReady(true);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", uid)
+        .single();
+      if (error || !data) {
+        setReady(true);
+        return;
+      }
+      setIsAdmin(data.role === "admin");
+      setReady(true);
+    })();
+  }, []);
+
+  if (!ready) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <Spin />
+      </div>
+    );
+  }
+  if (!isAdmin) {
+    message.error("您没有管理后台权限，请使用抄表员填报页");
+    return <Navigate to="/meter" replace />;
+  }
+  return children;
+}
+
+function RequireAdmin({ children }: { children: JSX.Element }) {
+  return (
+    <AntApp>
+      <RequireAdminInner>{children}</RequireAdminInner>
+    </AntApp>
+  );
+}
+
 export default function App() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
@@ -58,7 +107,9 @@ export default function App() {
           path="/admin"
           element={
             <RequireAuth>
-              <AdminLayout />
+              <RequireAdmin>
+                <AdminLayout />
+              </RequireAdmin>
             </RequireAuth>
           }
         >
