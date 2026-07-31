@@ -540,7 +540,7 @@ BEGIN
     UPDATE auth.users
     SET encrypted_password = crypt(p_new_password, gen_salt('bf')),
         updated_at         = NOW()
-    WHERE id = p_id;
+    WHERE auth.users.id = p_id;
     IF NOT FOUND THEN
         RAISE EXCEPTION '账号不存在';
     END IF;
