@@ -110,13 +110,15 @@ export async function register(
   password: string,
   displayName: string,
   role: string
-) {
-  const { error } = await supabase.auth.signUp({
-    email: toEmail(username),
-    password,
-    options: { data: { username, display_name: displayName, role } },
+): Promise<Profile> {
+  const { data, error } = await supabase.rpc("create_user", {
+    p_username: username,
+    p_password: password,
+    p_display_name: displayName,
+    p_role: role,
   });
   if (error) throw error;
+  return (data as Profile[])[0];
 }
 
 export async function logout() {

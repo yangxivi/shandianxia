@@ -1,16 +1,14 @@
 import { useState } from "react";
-import { Button, Card, Form, Input, Typography, App, Divider } from "antd";
+import { Button, Card, Form, Input, Typography, App } from "antd";
 import { ThunderboltOutlined, UserOutlined, LockOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { login, register, errMsg } from "../api";
+import { login, errMsg } from "../api";
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
-  const [regOpen, setRegOpen] = useState(false);
   const nav = useNavigate();
   const { message } = App.useApp();
   const [form] = Form.useForm();
-  const [regForm] = Form.useForm();
 
   const onFinish = async (v: { username: string; password: string }) => {
     setLoading(true);
@@ -22,17 +20,6 @@ export default function Login() {
       message.error(errMsg(e));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const onRegister = async (v: { username: string; password: string; display_name: string; role: string }) => {
-    try {
-      await register(v.username, v.password, v.display_name, v.role);
-      message.success("注册成功，请用新账号登录（若需管理员权限请联系已有的管理员）");
-      setRegOpen(false);
-      regForm.resetFields();
-    } catch (e: any) {
-      message.error(errMsg(e));
     }
   };
 
@@ -55,26 +42,9 @@ export default function Login() {
             登录
           </Button>
         </Form>
-        <Divider plain style={{ fontSize: 12 }}>或</Divider>
-        <Button block onClick={() => setRegOpen(true)}>注册新账号</Button>
-      </Card>
-
-      <Card title="注册新账号" style={{ width: 360, marginTop: 16, display: regOpen ? "block" : "none" }}>
-        <Form form={regForm} onFinish={onRegister} size="large" layout="vertical">
-          <Form.Item label="账号" name="username" rules={[{ required: true, message: "必填" }]}>
-            <Input placeholder="如 reader31" />
-          </Form.Item>
-          <Form.Item label="姓名" name="display_name" rules={[{ required: true, message: "必填" }]}>
-            <Input placeholder="如 抄表员31" />
-          </Form.Item>
-          <Form.Item label="密码" name="password" rules={[{ required: true, min: 6, message: "至少 6 位" }]}>
-            <Input.Password />
-          </Form.Item>
-          <Form.Item label="角色" name="role" initialValue="reader">
-            <Input value="reader" disabled />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" block>提交注册</Button>
-        </Form>
+        <Typography.Paragraph type="secondary" style={{ marginTop: 16, textAlign: "center", fontSize: 12, marginBottom: 0 }}>
+          需注册账号？请联系系统管理员在「账号管理」后台新增
+        </Typography.Paragraph>
       </Card>
     </div>
   );

@@ -548,6 +548,98 @@ END;
 $$;
 
 -- ============================================================
+-- 15e. RPC：创建账号（仅 admin，直接写入 auth.users，绕过 Supabase Auth 邮箱验证）
+--     保持与 reset_password 相同模式：bcrypt 哈希、SECURITY DEFINER
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.create_user(
+    p_username     TEXT,
+    p_password     TEXT,
+    p_display_name TEXT,
+    p_role         TEXT DEFAULT 'reader'
+)
+RETURNS TABLE(id UUID, username TEXT, display_name TEXT, role TEXT)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_id UUID;
+    v_email TEXT;
+BEGIN
+    IF NOT public.is_admin() THEN RAISE EXCEPTION '无权限：仅管理员可操作'; END IF;
+
+    -- 参数校验
+    IF p_username IS NULL OR length(trim(p_username)) = 0 THEN
+        RAISE EXCEPTION '用户名不能为空';
+    END IF;
+    IF p_password IS NULL OR length(p_password) < 6 THEN
+        RAISE EXCEPTION '密码至少6位';
+    END IF;
+    IF p_role NOT IN ('admin', 'reader') THEN
+        RAISE EXCEPTION '角色必须为 admin 或 reader';
+    END IF;
+    IF p_display_name IS NULL OR length(trim(p_display_name)) = 0 THEN
+        p_display_name := trim(p_username);
+    END IF;
+
+    p_username     := trim(p_username);
+    p_display_name := trim(p_display_name);
+    v_email        := lower(p_username) || '@sd.local';
+
+    -- 用户名唯一性（profiles 表）
+    IF EXISTS (SELECT 1 FROM public.profiles pr WHERE pr.username = p_username) THEN
+        RAISE EXCEPTION '用户名已存在';
+    END IF;
+    -- 邮箱唯一性（auth.users 表）
+    IF EXISTS (SELECT 1 FROM auth.users u WHERE u.email = v_email) THEN
+        RAISE EXCEPTION '用户名已存在';
+    END IF;
+
+    -- 生成 UUID
+    v_id := gen_random_uuid();
+
+    -- 直接写入 auth.users（与 reset_password 同模式：bcrypt 哈希，绕过 Auth API 邮箱格式校验）
+    INSERT INTO auth.users (
+        id,
+        instance_id,
+        aud,
+        role,
+        email,
+        encrypted_password,
+        email_confirmed_at,
+        confirmation_token,
+        confirmation_sent_at,
+        recovery_token,
+        raw_user_meta_data,
+        raw_app_meta_data,
+        is_super_admin,
+        is_sso_user,
+        created_at,
+        updated_at
+    ) VALUES (
+        v_id,
+        NULL,
+        'authenticated',
+        'authenticated',
+        v_email,
+        crypt(p_password, gen_salt('bf')),
+        NOW(),
+        '',
+        NULL,
+        '',
+        jsonb_build_object('username', p_username, 'display_name', p_display_name, 'role', p_role),
+        '{}'::jsonb,
+        false,
+        false,
+        NOW(),
+        NOW()
+    );
+
+    -- auth.users 插入成功后，on_auth_user_created 触发器会自动创建 profiles 记录
+    -- 但触发可能还未执行，这里强制返回
+    RETURN QUERY
+        SELECT v_id AS id, p_username AS username, p_display_name AS display_name, p_role AS role;
+END;
+$$;
+
+-- ============================================================
 -- 15c. RPC：删除账号（仅 admin，删除 profile 记录）
 --     注意：auth.users 中的认证记录需通过 Supabase Auth Admin API 单独清理
 -- ============================================================
@@ -611,6 +703,9 @@ GRANT  EXECUTE ON FUNCTION public.delete_profile(UUID) TO authenticated;
 
 REVOKE EXECUTE ON FUNCTION public.reset_password(UUID, TEXT) FROM anon;
 GRANT  EXECUTE ON FUNCTION public.reset_password(UUID, TEXT) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.create_user(TEXT, TEXT, TEXT, TEXT) FROM anon;
+GRANT  EXECUTE ON FUNCTION public.create_user(TEXT, TEXT, TEXT, TEXT) TO authenticated;
 
 REVOKE EXECUTE ON FUNCTION public.is_admin() FROM anon;
 GRANT  EXECUTE ON FUNCTION public.is_admin() TO authenticated;
