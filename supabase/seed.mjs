@@ -27,6 +27,7 @@ const admin = createClient(URL, KEY, {
 });
 
 const DEVICE_COUNT = 30;
+const EMAIL_DOMAIN = "sd.com";
 
 async function ensureUser(email, password, meta) {
   // 先看是否已存在
@@ -54,7 +55,7 @@ async function ensureUser(email, password, meta) {
 
 async function main() {
   console.log("→ 创建管理员 admin ...");
-  const adminId = await ensureUser("admin@sd.local", "admin123", {
+  const adminId = await ensureUser(`admin@${EMAIL_DOMAIN}`, "admin123", {
     username: "admin",
     display_name: "系统管理员",
     role: "admin",
@@ -64,7 +65,7 @@ async function main() {
   for (let i = 1; i <= DEVICE_COUNT; i++) {
     const no = String(i).padStart(2, "0");
     const username = `reader${no}`;
-    const email = `${username}@sd.local`;
+    const email = `${username}@${EMAIL_DOMAIN}`;
     const readerId = await ensureUser(email, "reader123", {
       username,
       display_name: `抄表员${no}`,
