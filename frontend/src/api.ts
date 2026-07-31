@@ -105,20 +105,31 @@ export async function login(username: string, password: string): Promise<Profile
   throw lastError;
 }
 
+// ============ 账号管理（通过 Edge Function 调用 Auth Admin API） ============
+// 直接操作 auth.users 的 SQL RPC 不被 Supabase Auth 识别，必须走 Admin API。
+// Edge Function admin-auth 内部用 service_role key 调用 Admin API，前端只需携带登录态 JWT。
+async function invokeAdminAuth(action: string, params: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke("admin-auth", {
+    body: { action, ...params },
+  });
+  if (error) throw error;
+  if (data && (data as any).error) throw new Error((data as any).error);
+  return data;
+}
+
 export async function register(
   username: string,
   password: string,
   displayName: string,
   role: string
 ): Promise<Profile> {
-  const { data, error } = await supabase.rpc("create_user", {
-    p_username: username,
-    p_password: password,
-    p_display_name: displayName,
-    p_role: role,
+  const data = await invokeAdminAuth("create_user", {
+    username,
+    password,
+    display_name: displayName || username,
+    role,
   });
-  if (error) throw error;
-  return (data as Profile[])[0];
+  return data as Profile;
 }
 
 export async function logout() {
@@ -237,8 +248,8 @@ export async function updateProfile(
 }
 
 export async function deleteProfile(id: string) {
-  const { error } = await supabase.rpc("delete_profile", { p_id: id });
-  if (error) throw error;
+  // 通过 Edge Function 同时删除 auth.users 和 profiles（级联）
+  await invokeAdminAuth("delete_user", { id });
 }
 
 export async function batchDeleteProfiles(ids: string[]): Promise<void> {
@@ -256,11 +267,7 @@ export async function batchUpdateProfileRole(
 }
 
 export async function resetPassword(id: string, newPassword: string) {
-  const { error } = await supabase.rpc("reset_password", {
-    p_id: id,
-    p_new_password: newPassword,
-  });
-  if (error) throw error;
+  await invokeAdminAuth("reset_password", { id, new_password: newPassword });
 }
 
 export async function listReadings(params: {

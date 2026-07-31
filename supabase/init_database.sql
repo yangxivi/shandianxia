@@ -527,7 +527,7 @@ CREATE OR REPLACE FUNCTION public.reset_password(
     p_id          UUID,
     p_new_password TEXT
 )
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 BEGIN
     IF NOT public.is_admin() THEN RAISE EXCEPTION '无权限：仅管理员可操作'; END IF;
     IF p_id IS NULL THEN RAISE EXCEPTION '账号ID不能为空'; END IF;
@@ -538,7 +538,7 @@ BEGIN
     -- 允许重置自己的密码
     -- 用 bcrypt 哈希新密码并写入 auth.users（Supabase Auth 兼容）
     UPDATE auth.users
-    SET encrypted_password = crypt(p_new_password, gen_salt('bf')),
+    SET encrypted_password = extensions.crypt(p_new_password, extensions.gen_salt('bf', 10)),
         updated_at         = NOW()
     WHERE auth.users.id = p_id;
     IF NOT FOUND THEN
@@ -558,7 +558,7 @@ CREATE OR REPLACE FUNCTION public.create_user(
     p_role         TEXT DEFAULT 'reader'
 )
 RETURNS TABLE(id UUID, username TEXT, display_name TEXT, role TEXT)
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
     v_id UUID;
     v_email TEXT;
@@ -619,8 +619,7 @@ BEGIN
         'authenticated',
         'authenticated',
         v_email,
-        crypt(p_password, gen_salt('bf')),
-        NOW(),
+        extensions.crypt(p_password, extensions.gen_salt('bf', 10)), NOW(),
         '',
         NULL,
         '',
