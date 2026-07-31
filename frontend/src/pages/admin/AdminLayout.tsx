@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { Layout, Menu, Button, Avatar, Space, Typography, Tabs } from "antd";
+import { useCallback } from "react";
+import { Layout, Menu, Button, Avatar, Space, Typography } from "antd";
 import {
   DashboardOutlined, DatabaseOutlined, TableOutlined, QrcodeOutlined,
   TeamOutlined, LogoutOutlined, UserOutlined, ThunderboltOutlined,
@@ -18,71 +18,16 @@ const navItems = [
   { key: "/admin/qr",       icon: <QrcodeOutlined />,   label: "二维码生成" },
 ];
 
-const navLabelMap: Record<string, string> = Object.fromEntries(
-  navItems.map((i) => [i.key, i.label])
-);
-
-/* ── 主布局：顶部导航 + 标签页 + 固定底栏 ── */
+/* ── 主布局：顶部导航 + 内容区 + 固定底栏 ── */
 export default function AdminLayout() {
   const nav = useNavigate();
   const loc = useLocation();
-  const [openTabs, setOpenTabs] = useState<{ key: string; label: string }[]>([
-    { key: "/admin/summary", label: "月度汇总" },
-  ]);
-  const [activeKey, setActiveKey] = useState("/admin/summary");
 
-  /* 导航点击 → 打开标签并跳转 */
-  const handleNavClick = useCallback(
-    (key: string) => {
-      if (!openTabs.find((t) => t.key === key)) {
-        setOpenTabs((prev) => [...prev, { key, label: navLabelMap[key] || key }]);
-      }
-      setActiveKey(key);
-      nav(key);
-    },
-    [nav, openTabs]
-  );
-
-  /* 关闭标签 */
-  const closeTab = (targetKey: string) => {
-    const idx = openTabs.findIndex((t) => t.key === targetKey);
-    if (idx === -1) return;
-    const next = [...openTabs];
-    next.splice(idx, 1);
-    setOpenTabs(next);
-
-    // 如果关闭的是当前标签，切换到相邻标签
-    if (activeKey === targetKey && next.length > 0) {
-      const newActive = next[Math.min(idx, next.length - 1)].key;
-      setActiveKey(newActive);
-      nav(newActive);
-    }
-    // 如果全部关了，回到首页
-    if (next.length === 0) {
-      setActiveKey("/admin/summary");
-      nav("/admin/summary");
-    }
-  };
-
-  /* 标签切换 */
-  const onTabChange = (key: string) => {
-    setActiveKey(key);
+  const handleNavClick = useCallback((key: string) => {
     nav(key);
-  };
+  }, [nav]);
 
-  /* URL 变化时同步 activeKey（浏览器前进/后退） */
-  useEffect(() => {
-    const matched = openTabs.find((t) => loc.pathname.startsWith(t.key.replace("/admin/", "")));
-    // 精确匹配或前缀匹配
-    const found = openTabs.find((t) =>
-      t.key === loc.pathname || loc.pathname.startsWith(t.key + "/") || loc.pathname === t.key
-    );
-    if (found && found.key !== activeKey) {
-      setActiveKey(found.key);
-    }
-  }, [loc.pathname]);
-
-  /* 选中菜单项 */
+  /* 选中菜单项（按路径前缀匹配） */
   const selectedMenu = navItems.find((i) =>
     i.key === loc.pathname || loc.pathname.startsWith(i.key)
   )?.key || "/admin/summary";
@@ -168,57 +113,14 @@ export default function AdminLayout() {
         </Space>
       </Header>
 
-      {/* ════════════════ 标签页栏 ════════════════ */}
-      <div
-        style={{
-          position: "fixed",
-          top: 56,
-          left: 0,
-          right: 0,
-          height: 40,
-          background: "#fff",
-          borderBottom: "1px solid #f0f0f0",
-          zIndex: 999,
-          display: "flex",
-          alignItems: "center",
-          paddingLeft: 24,
-          paddingRight: 24,
-        }}
-      >
-        <Tabs
-          type="editable-card"
-          hideAdd
-          activeKey={activeKey}
-          onChange={onTabChange}
-          onEdit={(targetKey, action) => {
-            if (action === "remove") closeTab(targetKey as string);
-          }}
-          items={openTabs.map((t) => ({
-            key: t.key,
-            label: t.label,
-            closable: openTabs.length > 1 || t.key !== "/admin/summary",
-          }))}
-          size="small"
-          style={{
-            width: "100%",
-            height: 40,
-          }}
-          tabBarStyle={{
-            marginBottom: 0,
-            height: 40,
-            paddingTop: 2,
-          }}
-        />
-      </div>
-
       {/* ════════════════ 内容区 ════════════════ */}
       <Content
         style={{
-          marginTop: 96,   /* 56(header) + 40(tabs) */
-          marginBottom: 36, /* footer */
+          marginTop: 56,
+          marginBottom: 36,
           padding: "16px 24px",
           background: "#f5f5f5",
-          minHeight: "calc(100vh - 132px)",
+          minHeight: "calc(100vh - 92px)",
           overflow: "auto",
         }}
       >

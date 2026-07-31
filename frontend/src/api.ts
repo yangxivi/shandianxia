@@ -223,6 +223,20 @@ export async function deleteProfile(id: string) {
   if (error) throw error;
 }
 
+export async function batchDeleteProfiles(ids: string[]): Promise<void> {
+  await Promise.all(ids.map(id => deleteProfile(id)));
+}
+
+export async function batchUpdateProfileRole(
+  items: { id: string; display_name: string; role: string }[]
+): Promise<void> {
+  await Promise.all(
+    items.map(item =>
+      updateProfile(item.id, { display_name: item.display_name, role: item.role })
+    )
+  );
+}
+
 export async function resetPassword(id: string, newPassword: string) {
   const { error } = await supabase.rpc("reset_password", {
     p_id: id,
