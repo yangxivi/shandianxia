@@ -63,30 +63,46 @@ export function errMsg(e: any): string {
   return e?.toString?.() || "操作失败";
 }
 
-// ============ 认证（Supabase Auth，账号映射为 xxx@sd.local） ============
-const toEmail = (username: string) => `${username.trim()}@sd.local`;
+// ============ 认证（Supabase Auth，账号映射为 xxx@sd.com） ============
+// ⚠️ Supabase 公开注册接口(signUp)会校验邮箱 TLD，拒绝 .local 等私有域名。
+//    新账号统一使用 sd.com（合法 TLD）；登录时兼容旧 seed 创建的 @sd.local 账号。
+const EMAIL_DOMAIN = "sd.com";
+const LEGACY_DOMAIN = "sd.local";
+
+const toEmail = (username: string, domain: string = EMAIL_DOMAIN) =>
+  `${username.trim()}@${domain}`;
 
 export async function login(username: string, password: string): Promise<Profile> {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: toEmail(username),
-    password,
-  });
-  if (error) throw error;
-  const uid = data.user?.id;
-  const { data: prof } = await supabase
-    .from("profiles")
-    .select("display_name, role")
-    .eq("id", uid)
-    .single();
-  const profile: Profile = {
-    id: uid as string,
-    username: username.trim(),
-    display_name: prof?.display_name || username,
-    role: prof?.role || "reader",
-  };
-  localStorage.setItem("full_name", profile.display_name);
-  localStorage.setItem("role", profile.role);
-  return profile;
+  const cleanUsername = username.trim();
+  let lastError: any = null;
+  // 先尝试新域名，失败则回退旧域名（兼容 seed.mjs 创建的历史账号）
+  for (const domain of [EMAIL_DOMAIN, LEGACY_DOMAIN]) {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: toEmail(cleanUsername, domain),
+        password,
+      });
+      if (error) throw error;
+      const uid = data.user?.id;
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("display_name, role")
+        .eq("id", uid)
+        .single();
+      const profile: Profile = {
+        id: uid as string,
+        username: cleanUsername,
+        display_name: prof?.display_name || cleanUsername,
+        role: prof?.role || "reader",
+      };
+      localStorage.setItem("full_name", profile.display_name);
+      localStorage.setItem("role", profile.role);
+      return profile;
+    } catch (e: any) {
+      lastError = e;
+    }
+  }
+  throw lastError;
 }
 
 export async function register(
