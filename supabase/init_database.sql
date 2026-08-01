@@ -507,16 +507,15 @@ BEGIN
     IF p_role NOT IN ('admin', 'reader') THEN
         RAISE EXCEPTION '角色必须为 admin 或 reader';
     END IF;
-    -- 允许编辑自己的账号
-    UPDATE public.profiles
-    SET display_name = COALESCE(p_display_name, display_name),
+    -- 允许编辑自己的账号（用表别名限定列名，避免与 RETURNS TABLE 输出列冲突）
+    UPDATE public.profiles AS pr
+    SET display_name = COALESCE(p_display_name, pr.display_name),
         role         = p_role,
         updated_at   = NOW()
-    WHERE id = p_id;
+    WHERE pr.id = p_id;
     IF NOT FOUND THEN
         RAISE EXCEPTION '账号不存在';
     END IF;
-    -- 用表别名限定列名，避免与 RETURNS TABLE 的 id 列冲突（ambiguous column reference）
     RETURN QUERY SELECT pr.id, pr.username, pr.display_name, pr.role
     FROM public.profiles pr WHERE pr.id = p_id;
 END;
