@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         if (existData && existData.length > 0)
           return json({ error: "用户名已存在" }, 400);
 
-        const email = `${username.toLowerCase()}@sd.local`;
+        const email = `${username.toLowerCase()}@sd.com`;
         const createRes = await fetch(`${baseUrl}/auth/v1/admin/users`, {
           method: "POST",
           headers: adminHeaders,

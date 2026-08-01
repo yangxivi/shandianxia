@@ -9,10 +9,12 @@ export default function QrPage() {
   const { message } = App.useApp();
   const [devices, setDevices] = useState<Device[]>([]);
   const [imgs, setImgs] = useState<Record<string, string>>({});
+  let mounted = true;
 
   const load = async () => {
     try {
       const r = await listDevices();
+      if (!mounted) return;
       setDevices(r);
       const map: Record<string, string> = {};
       await Promise.all(
@@ -21,11 +23,18 @@ export default function QrPage() {
           map[d.id] = await QRCode.toDataURL(url, { width: 240, margin: 1 });
         })
       );
-      setImgs(map);
-    } catch (e: any) { message.error(errMsg(e)); }
+      if (mounted) setImgs(map);
+    } catch (e: any) {
+      const msg = errMsg(e);
+      if (msg && mounted) message.error(msg);
+    }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    mounted = true;
+    load();
+    return () => { mounted = false; };
+  }, []);
 
   return (
     <Card title="电表专属二维码（一设备一码，长期有效）">

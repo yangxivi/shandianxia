@@ -583,7 +583,7 @@ BEGIN
 
     p_username     := trim(p_username);
     p_display_name := trim(p_display_name);
-    v_email        := lower(p_username) || '@sd.local';
+    v_email        := lower(p_username) || '@sd.com';
 
     -- 用户名唯一性（profiles 表）
     IF EXISTS (SELECT 1 FROM public.profiles pr WHERE pr.username = p_username) THEN

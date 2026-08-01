@@ -20,14 +20,15 @@ const numericMonthLocale = {
   },
 } as typeof zhCN;
 
+// 注意：不使用 React.StrictMode，因为它会导致 useEffect 双重执行，
+// 第一次执行的 API 请求会被浏览器取消，从而抛出 "Failed to fetch" 错误。
+// 这在开发模式下是可重现的问题，影响正常使用。
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <ConfigProvider locale={numericMonthLocale} theme={{ token: { colorPrimary: "#1677ff" } }}>
-      <AntApp>
-        <HashRouter>
-          <App />
-        </HashRouter>
-      </AntApp>
-    </ConfigProvider>
-  </React.StrictMode>
+  <ConfigProvider locale={numericMonthLocale} theme={{ token: { colorPrimary: "#1677ff" } }}>
+    <AntApp>
+      <HashRouter>
+        <App />
+      </HashRouter>
+    </AntApp>
+  </ConfigProvider>
 );

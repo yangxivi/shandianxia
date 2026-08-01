@@ -20,6 +20,7 @@ export default function Readings() {
   const [meterNo, setMeterNo] = useState<string>("");
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
   const [readerId, setReaderId] = useState<string | undefined>();
+  let mounted = true;
 
   const load = async () => {
     setLoading(true);
@@ -32,15 +33,22 @@ export default function Readings() {
         start: range ? range[0].format("YYYY-MM-DD") : undefined,
         end: range ? range[1].format("YYYY-MM-DD") : undefined,
       });
+      if (!mounted) return;
       setRows(r);
-    } catch (e: any) { message.error(errMsg(e)); }
-    finally { setLoading(false); }
+    } catch (e: any) {
+      const msg = errMsg(e);
+      if (msg && mounted) message.error(msg);
+    } finally {
+      if (mounted) setLoading(false);
+    }
   };
 
   useEffect(() => {
-    listDevices().then(setDevices).catch(() => {});
-    listProfiles().then(setUsers).catch(() => {});
+    mounted = true;
+    listDevices().then((r) => { if (mounted) setDevices(r); }).catch(() => {});
+    listProfiles().then((r) => { if (mounted) setUsers(r); }).catch(() => {});
     load();
+    return () => { mounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

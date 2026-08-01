@@ -18,20 +18,27 @@ export default function Accounts() {
   const [batchRoleValue, setBatchRoleValue] = useState<string>("reader");
   const [batchRoleLoading, setBatchRoleLoading] = useState(false);
   const [form] = Form.useForm();
+  let mounted = true;
 
   const load = async () => {
     setLoading(true);
     try {
       const list = await listProfiles();
+      if (!mounted) return;
       setData(list);
     } catch (e: any) {
-      message.error(errMsg(e));
+      const msg = errMsg(e);
+      if (msg && mounted) message.error(msg);
     } finally {
-      setLoading(false);
+      if (mounted) setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    mounted = true;
+    load();
+    return () => { mounted = false; };
+  }, []);
 
   // ── 新增账号 ──
   const openCreate = () => {
@@ -63,7 +70,8 @@ export default function Accounts() {
         setOpen(false);
         load();
       } catch (e: any) {
-        message.error(errMsg(e));
+        const msg = errMsg(e);
+        if (msg) message.error(msg);
       }
     } else {
       const v = await form.validateFields();
@@ -81,7 +89,8 @@ export default function Accounts() {
         setOpen(false);
         load();
       } catch (e: any) {
-        message.error(errMsg(e));
+        const msg = errMsg(e);
+        if (msg) message.error(msg);
       }
     }
   };
@@ -94,7 +103,8 @@ export default function Accounts() {
       setSelectedRowKeys(keys => keys.filter(k => k !== row.id));
       load();
     } catch (e: any) {
-      message.error(errMsg(e));
+      const msg = errMsg(e);
+      if (msg) message.error(msg);
     }
   };
 

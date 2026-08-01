@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { App as AntApp, Spin } from "antd";
 import Login from "./pages/Login";
 import MeterPage from "./pages/MeterPage";
@@ -11,19 +11,30 @@ import Summary from "./pages/admin/Summary";
 import QrPage from "./pages/admin/QrPage";
 import { supabase } from "./lib/supabase";
 
+/*
+ * 只保留唯一一个 <AntApp>（在 main.tsx 中），避免消息上下文嵌套。
+ * 这里直接通过 AntApp.useApp() 访问外层上下文，不要再包一层 <AntApp>。
+ */
+
 function RequireAuth({ children }: { children: JSX.Element }) {
   const [ready, setReady] = useState(false);
   const [ok, setOk] = useState(false);
+  let mounted = true;
 
   useEffect(() => {
+    mounted = true;
     supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
       setOk(!!data.session);
       setReady(true);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setOk(!!s);
+      if (mounted) setOk(!!s);
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   if (!ready) {
@@ -37,31 +48,42 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
-function RequireAdminInner({ children }: { children: JSX.Element }) {
+function RequireAdmin({ children }: { children: JSX.Element }) {
   const [ready, setReady] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const { message } = AntApp.useApp();
+  let mounted = true;
 
   useEffect(() => {
+    mounted = true;
     (async () => {
-      const { data: sdata } = await supabase.auth.getSession();
-      const uid = sdata.session?.user?.id;
-      if (!uid) {
+      try {
+        const { data: sdata } = await supabase.auth.getSession();
+        if (!mounted) return;
+        const uid = sdata.session?.user?.id;
+        if (!uid) {
+          setReady(true);
+          return;
+        }
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", uid)
+          .single();
+        if (!mounted) return;
+        if (error || !data) {
+          setReady(true);
+          return;
+        }
+        setIsAdmin(data.role === "admin");
         setReady(true);
-        return;
+      } catch {
+        if (mounted) {
+          setReady(true);
+        }
       }
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", uid)
-        .single();
-      if (error || !data) {
-        setReady(true);
-        return;
-      }
-      setIsAdmin(data.role === "admin");
-      setReady(true);
     })();
+    return () => { mounted = false; };
   }, []);
 
   if (!ready) {
@@ -78,27 +100,52 @@ function RequireAdminInner({ children }: { children: JSX.Element }) {
   return children;
 }
 
-function RequireAdmin({ children }: { children: JSX.Element }) {
-  return (
-    <AntApp>
-      <RequireAdminInner>{children}</RequireAdminInner>
-    </AntApp>
-  );
+function AuthListener({ children }: { children: JSX.Element }) {
+  const nav = useNavigate();
+  const { message } = AntApp.useApp();
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent).detail || "登录已过期";
+      // 先退出登录，再跳转
+      supabase.auth.signOut().finally(() => {
+        localStorage.clear();
+        message.error(msg + "，请重新登录");
+        setTimeout(() => nav("/login", { replace: true }), 800);
+      });
+    };
+    window.addEventListener("auth-expired", handler);
+    return () => window.removeEventListener("auth-expired", handler);
+  }, [nav, message]);
+
+  return children;
 }
 
 export default function App() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  let mounted = true;
 
   useEffect(() => {
+    mounted = true;
     supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
       setAuthed(!!data.session);
       setReady(true);
     });
+    return () => { mounted = false; };
   }, []);
 
+  if (!ready) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <Spin />
+      </div>
+    );
+  }
+
   return (
-    <AntApp>
+    <AuthListener>
       <Routes>
         <Route path="/" element={<Navigate to={authed ? "/admin" : "/login"} replace />} />
         <Route path="/login" element={<Login />} />
@@ -122,6 +169,6 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </AntApp>
+    </AuthListener>
   );
 }

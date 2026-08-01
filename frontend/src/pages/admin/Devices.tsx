@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import {
   App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Typography, Tag,
 } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { listDevices, listProfiles, getPrice, setPrice, createDevice, deleteDevice, Device, Profile, errMsg } from "../../api";
+import { PlusOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { listDevices, listProfiles, getPrice, setPrice, createDevice, updateDevice, deleteDevice, Device, Profile, errMsg } from "../../api";
 
 export default function Devices() {
   const { message } = App.useApp();
@@ -12,46 +12,73 @@ export default function Devices() {
   const [price, setPriceVal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [form] = Form.useForm();
+  let mounted = true;
 
   const load = async () => {
     setLoading(true);
     try {
       const [d, u, p] = await Promise.all([listDevices(), listProfiles(), getPrice()]);
+      if (!mounted) return;
       setDevices(d);
       setUsers(u);
       setPriceVal(Number(p));
     } catch (e: any) {
-      message.error(errMsg(e));
+      const msg = errMsg(e);
+      if (msg && mounted) message.error(msg);
     } finally {
-      setLoading(false);
+      if (mounted) setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    mounted = true;
+    load();
+    return () => { mounted = false; };
+  }, []);
 
   const savePrice = async () => {
     try {
       await setPrice(String(price));
       message.success("电单价已更新，所有历史记录的单价与电费已同步重算");
-    } catch (e: any) { message.error(errMsg(e)); }
+    } catch (e: any) { const msg = errMsg(e); if (msg) message.error(msg); }
   };
 
   const openCreate = () => {
     form.resetFields();
     form.setFieldsValue({ multiplier: 1.0 });
+    setEditingId(null);
+    setOpen(true);
+  };
+
+  const openEdit = (record: Device) => {
+    form.setFieldsValue({
+      device_no: record.device_no,
+      device_name: record.device_name,
+      meter_no: record.meter_no,
+      multiplier: record.multiplier,
+      reader_id: record.reader_id ?? undefined,
+    });
+    setEditingId(record.id);
     setOpen(true);
   };
 
   const submit = async () => {
     const v = await form.validateFields();
     try {
-      await createDevice(v);
-      message.success("设备已新增");
+      if (editingId) {
+        await updateDevice(editingId, v);
+        message.success("设备已更新");
+      } else {
+        await createDevice(v);
+        message.success("设备已新增");
+      }
       setOpen(false);
+      setEditingId(null);
       load();
-    } catch (e: any) { message.error(errMsg(e)); }
+    } catch (e: any) { const msg = errMsg(e); if (msg) message.error(msg); }
   };
 
   // ── 批量删除 ──
@@ -65,7 +92,8 @@ export default function Devices() {
       setSelectedRowKeys([]);
       load();
     } catch (e: any) {
-      message.error(errMsg(e));
+      const msg = errMsg(e);
+      if (msg) message.error(msg);
     }
   };
 
@@ -81,7 +109,23 @@ export default function Devices() {
     },
     {
       title: "抄表责任人", dataIndex: "reader_name",
-      render: (n: string) => n || <Typography.Text type="danger">未绑定</Typography.Text>,
+      render: (n: string, record: Device) => n
+        ? <Typography.Link onClick={() => openEdit(record)}>{n}</Typography.Link>
+        : <Typography.Link type="danger" onClick={() => openEdit(record)}>未绑定（点击绑定）</Typography.Link>,
+    },
+    {
+      title: "操作",
+      width: 100,
+      render: (_: any, record: Device) => (
+        <Button
+          type="link"
+          size="small"
+          icon={<EditOutlined />}
+          onClick={() => openEdit(record)}
+        >
+          编辑
+        </Button>
+      ),
     },
   ];
 
@@ -134,12 +178,12 @@ export default function Devices() {
       </Card>
 
       <Modal
-        title="新增设备"
+        title={editingId ? "编辑设备" : "新增设备"}
         open={open}
         onOk={submit}
-        onCancel={() => setOpen(false)}
+        onCancel={() => { setOpen(false); setEditingId(null); }}
         destroyOnClose
-        okText="创建"
+        okText={editingId ? "保存" : "创建"}
       >
         <Form form={form} layout="vertical">
           <Form.Item label="设备编号" name="device_no" rules={[{ required: true, message: "必填" }]}>

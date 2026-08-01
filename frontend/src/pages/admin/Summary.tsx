@@ -10,18 +10,29 @@ export default function Summary() {
   const [month, setMonth] = useState<string>(dayjs().format("YYYY-MM"));
   const [data, setData] = useState<{ devices: MonthlyItem[]; total_kwh: number; total_fee: number } | null>(null);
   const [loading, setLoading] = useState(false);
+  let mounted = true;
 
   const load = async () => {
     if (!month) return;
     setLoading(true);
     try {
       const r = await monthlySummary(month);
+      if (!mounted) return;
       setData(r);
-    } catch (e: any) { message.error(errMsg(e)); }
-    finally { setLoading(false); }
+    } catch (e: any) {
+      const msg = errMsg(e);
+      if (msg && mounted) message.error(msg);
+    } finally {
+      if (mounted) setLoading(false);
+    }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    mounted = true;
+    load();
+    return () => { mounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const download = () => {
     const rows = (data?.devices || []).map((d) => ({

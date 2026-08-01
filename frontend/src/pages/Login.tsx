@@ -17,7 +17,8 @@ export default function Login() {
       message.success("登录成功");
       nav("/admin");
     } catch (e: any) {
-      message.error(errMsg(e));
+      const msg = errMsg(e);
+      if (msg) message.error(msg);
     } finally {
       setLoading(false);
     }

@@ -36,10 +36,12 @@ export default function MeterPage() {
       setLoading(false);
       return;
     }
+    let mounted = true;
     fetchDeviceInfo(deviceNo)
-      .then((d) => setInfo(d))
-      .catch((e) => message.error(errMsg(e)))
-      .finally(() => setLoading(false));
+      .then((d) => { if (mounted) setInfo(d); })
+      .catch((e) => { const msg = errMsg(e); if (msg && mounted) message.error(msg); })
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
   }, [deviceNo]);
 
   const onFinish = async (v: { reading_value: number }) => {
@@ -49,8 +51,8 @@ export default function MeterPage() {
       setDone({ kwh: r.daily_kwh, fee: r.daily_fee, date: r.read_date });
       message.success("抄表成功，数据已同步后台");
     } catch (e: any) {
-      // 重复填报 / 异常拦截 等均在此提示
-      message.error(errMsg(e));
+      const msg = errMsg(e);
+      if (msg) message.error(msg);
     } finally {
       setSubmitting(false);
     }
