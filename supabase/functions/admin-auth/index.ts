@@ -36,10 +36,24 @@ Deno.serve(async (req) => {
     const userRes = await fetch(`${baseUrl}/auth/v1/user`, {
       headers: { Authorization: authHeader, apikey: anonKey },
     });
-    if (!userRes.ok) return json({ error: "未登录" }, 401);
+    if (!userRes.ok) {
+      const errData = await userRes.json();
+      const errCode = errData?.code;
+      const errMsg = errData?.msg || errData?.message || "";
+      // 常见认证失败：session 已过期 / token 无效 / 登录态不存在
+      if (
+        errCode === "session_not_found" ||
+        errMsg.includes("session") ||
+        errMsg.includes("Session") ||
+        userRes.status === 401
+      ) {
+        return json({ error: "登录已过期，请退出登录后重新登录", code: errCode }, 401);
+      }
+      return json({ error: "未登录" }, 401);
+    }
     const userData = await userRes.json();
     const uid = userData.id;
-    if (!uid) return json({ error: "未登录" }, 401);
+    if (!uid) return json({ error: "登录已过期，请重新登录" }, 401);
 
     // 2. 用 service_role key 查询 profiles 校验 admin 角色
     const profRes = await fetch(
