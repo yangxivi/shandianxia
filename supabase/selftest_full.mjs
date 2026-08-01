@@ -1,11 +1,11 @@
 // 闪电侠 · 全功能端到端自检脚本（覆盖设备/抄表/汇总/单价/公开抄表等）
-// 用法： ADMIN_EMAIL=xiviyang@sd.local ADMIN_PASS=xxx node supabase/selftest_full.mjs
+// 用法： ADMIN_EMAIL=admin@sd.com ADMIN_PASS=admin123 node supabase/selftest_full.mjs
 import "./polyfill.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const URL = "https://dpbtqwfbprartiogydqg.supabase.co";
 const ANON = "sb_publishable_m6iKgdv8VRGdx1KXAzWpSQ_BCDocpl_";
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "xiviyang@sd.local";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@sd.com";
 const ADMIN_PASS = process.env.ADMIN_PASS;
 
 if (!ADMIN_PASS) {
@@ -234,7 +234,7 @@ let firstReading = 100.50;
 {
   await supabase.auth.signOut();
   const { error } = await supabase.auth.signInWithPassword({
-    email: `${TEST_READER}@sd.local`,
+    email: `${TEST_READER}@sd.com`,
     password: TEST_READER_PASS,
   });
   log(!error, "测试抄表员登录", error ? error.message : "ok");

@@ -1,11 +1,11 @@
 // 闪电侠 · 端到端自检脚本（anon key + admin 登录态调用 Edge Function + RPC）
-// 用法： ADMIN_EMAIL=xiviyang@sd.local ADMIN_PASS=xxx node supabase/selftest.mjs
+// 用法： ADMIN_EMAIL=admin@sd.com ADMIN_PASS=admin123 node supabase/selftest.mjs
 import "./polyfill.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const URL = "https://dpbtqwfbprartiogydqg.supabase.co";
 const ANON = "sb_publishable_m6iKgdv8VRGdx1KXAzWpSQ_BCDocpl_";
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "xiviyang@sd.local";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@sd.com";
 const ADMIN_PASS = process.env.ADMIN_PASS;
 
 if (!ADMIN_PASS) {
@@ -68,7 +68,7 @@ async function invokeAdminAuth(action, params) {
 {
   await supabase.auth.signOut();
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: `${TEST_USER}@sd.local`,
+    email: `${TEST_USER}@sd.com`,
     password: TEST_PASS_1,
   });
   log(!error && !!data.session, "新账号登录（create_user 密码生效）", error ? error.message : `uid=${data.user?.id?.slice(0,8)}…`);
@@ -117,14 +117,14 @@ async function invokeAdminAuth(action, params) {
 {
   await supabase.auth.signOut();
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: `${TEST_USER}@sd.local`,
+    email: `${TEST_USER}@sd.com`,
     password: TEST_PASS_2,
   });
   log(!error && !!data.session, "新密码登录（reset_password 生效）", error ? error.message : "ok");
 
   // 7b) 旧密码应失败
   const { error: oldErr } = await supabase.auth.signInWithPassword({
-    email: `${TEST_USER}@sd.local`,
+    email: `${TEST_USER}@sd.com`,
     password: TEST_PASS_1,
   });
   log(!!oldErr, "旧密码已失效", oldErr ? `已拒绝: ${oldErr.message.slice(0,40)}` : "❌ 旧密码仍可用！");
@@ -147,7 +147,7 @@ async function invokeAdminAuth(action, params) {
       // 验证 auth.users 也被清理
       await supabase.auth.signOut();
       const { error: loginErr } = await supabase.auth.signInWithPassword({
-        email: `${TEST_USER}@sd.local`,
+        email: `${TEST_USER}@sd.com`,
         password: TEST_PASS_2,
       });
       log(!!loginErr, "已删除账号无法登录", loginErr ? `已拒绝: ${loginErr.message.slice(0,40)}` : "❌ 仍可登录！");

@@ -12,6 +12,7 @@ interface DeviceInfo {
   meter_no: string;
   reader_name: string | null;
   yesterday_reading: number | null;
+  today_submitted: boolean;
 }
 
 export default function MeterPage() {
@@ -80,6 +81,19 @@ export default function MeterPage() {
           status="success"
           title="当日抄表已完成"
           subTitle={`日期 ${done.date}　每日电量 ${done.kwh} 度　每日电费 ${done.fee} 元`}
+        />
+      </div>
+    );
+  }
+
+  // 后端检测到当日已抄表，直接展示完成页（避免用户填完再被拒）
+  if (info?.today_submitted) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <Result
+          status="info"
+          title="当日抄表已完成"
+          subTitle={`设备 ${info.device_no}（${info.device_name}）今日已抄表，无需重复填报。明天再扫码即可。`}
         />
       </div>
     );

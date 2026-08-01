@@ -240,7 +240,7 @@ END;
 $$;
 
 -- 公开设备信息（扫码页展示用，不含敏感数据）
--- 同时返回昨日(最近一次)读数，供前端先期展示与实时拦截
+-- 同时返回昨日(最近一次)读数与当日是否已抄表，供前端先期展示与实时拦截
 CREATE OR REPLACE FUNCTION public.device_public_info(p_device_no TEXT)
 RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -248,6 +248,7 @@ DECLARE
     v_name TEXT;
     v_today DATE := (NOW() AT TIME ZONE 'Asia/Shanghai')::DATE;
     v_yesterday NUMERIC;
+    v_today_done BOOLEAN := false;
 BEGIN
     SELECT * INTO v_dev FROM public.devices WHERE device_no = p_device_no;
     IF NOT FOUND THEN
@@ -258,12 +259,18 @@ BEGIN
     SELECT reading_value INTO v_yesterday FROM public.readings
     WHERE device_id = v_dev.id AND read_date < v_today
     ORDER BY read_date DESC LIMIT 1;
+    -- 检查当日是否已抄表（前端据此提示用户，避免填完再被拒）
+    SELECT EXISTS(
+        SELECT 1 FROM public.readings
+        WHERE device_id = v_dev.id AND read_date = v_today
+    ) INTO v_today_done;
     RETURN jsonb_build_object(
         'device_no', v_dev.device_no,
         'device_name', v_dev.device_name,
         'meter_no', v_dev.meter_no,
         'reader_name', v_name,
-        'yesterday_reading', v_yesterday
+        'yesterday_reading', v_yesterday,
+        'today_submitted', v_today_done
     );
 END;
 $$;
@@ -598,6 +605,7 @@ BEGIN
     v_id := gen_random_uuid();
 
     -- 直接写入 auth.users（与 reset_password 同模式：bcrypt 哈希，绕过 Auth API 邮箱格式校验）
+    -- 注意：raw_app_meta_data 必须包含 provider 信息，否则 GoTrue 不识别该用户的登录方式
     INSERT INTO auth.users (
         id,
         instance_id,
@@ -622,11 +630,11 @@ BEGIN
         'authenticated',
         v_email,
         extensions.crypt(p_password, extensions.gen_salt('bf', 10)), NOW(),
-        '',
+        NULL,
         NULL,
         '',
         jsonb_build_object('username', p_username, 'display_name', p_display_name, 'role', p_role),
-        '{}'::jsonb,
+        jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email')),
         false,
         false,
         NOW(),
