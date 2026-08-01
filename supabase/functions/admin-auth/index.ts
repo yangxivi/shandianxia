@@ -2,7 +2,7 @@
 // 通过 Supabase Auth Admin API 创建/重置/删除账号
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, sb-authorization",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
