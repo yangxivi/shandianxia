@@ -10,18 +10,14 @@ function notifyAuthExpired(msg: string) {
 // 这类错误对用户无意义，应静默忽略
 export function isCancelledError(e: any): boolean {
   const msg = e?.message || e?.toString?.() || "";
-  // AbortError 是 AbortController 主动取消
   if (e?.name === "AbortError") return true;
-  // Failed to fetch 在组件卸载/路由切换时通常是请求被浏览器取消
   if (msg.includes("Failed to fetch")) return true;
   return false;
 }
 
 // 统一错误提取（supabase 异常文本即业务提示）
-// 注意：原生 TypeError("Failed to fetch") 通常为请求被取消，应静默忽略
 export function errMsg(e: any): string {
   const msg = e?.message || e?.error_description || e?.toString?.() || "操作失败";
-  // 被取消的请求不应显示错误
   if (isCancelledError(e)) return "";
   if (msg.includes("Invalid login credentials") || msg.includes("invalid_credentials")) {
     return "用户名或密码错误";
@@ -60,6 +56,8 @@ export interface Reading {
   daily_fee: number;
   reader_id: string | null;
   reader_name: string | null;
+  edit_count?: number;
+  is_auto_filled?: boolean;
 }
 
 export interface Profile {
@@ -89,24 +87,46 @@ export interface SubmitResult {
   read_date: string;
   daily_kwh: number;
   daily_fee: number;
+  auto_filled_days?: number;
+}
+
+export interface UpdateResult {
+  ok: boolean;
+  device_no: string;
+  read_date: string;
+  daily_kwh: number;
+  daily_fee: number;
+  edit_count: number;
+  remaining_edits: number;
+}
+
+export interface RecentReading {
+  read_date: string;
+  reading_value: number;
+  is_auto_filled: boolean;
+  daily_kwh: number;
+}
+
+export interface DeviceInfo {
+  device_no: string;
+  device_name: string;
+  meter_no: string;
+  reader_name: string | null;
+  today_submitted: boolean;
+  today_edit_count: number;
+  max_edits: number;
+  recent_readings: RecentReading[];
 }
 
 // ============ 认证（Supabase Auth，账号映射为 xxx@sd.com） ============
-// 所有账号统一使用 @sd.com 域名（seed.mjs 和 Edge Function 已对齐）。
-// 保留 @sd.local 回退以兼容极早期创建的历史账号。
 const EMAIL_DOMAIN = "sd.com";
 const LEGACY_DOMAIN = "sd.local";
-
 const toEmail = (username: string, domain: string = EMAIL_DOMAIN) =>
   `${username.trim()}@${domain}`;
 
 export async function login(username: string, password: string): Promise<Profile> {
   const cleanUsername = username.trim();
   let lastError: any = null;
-
-  // 依次尝试 @sd.com 和 @sd.local 两个域名
-  // 认证错误（密码错误）时不 break，继续尝试下一个域名（账号可能在另一个域名下）
-  // 仅网络错误（Failed to fetch）时停止
   for (const domain of [EMAIL_DOMAIN, LEGACY_DOMAIN]) {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -131,24 +151,18 @@ export async function login(username: string, password: string): Promise<Profile
       return profile;
     } catch (e: any) {
       lastError = e;
-      // 网络错误直接停止（服务不可达）
       if (isCancelledError(e)) break;
     }
   }
-
   throw lastError;
 }
 
 // ============ 账号管理（通过 Edge Function 调用 Auth Admin API） ============
-// 直接操作 auth.users 的 SQL RPC 不被 Supabase Auth 识别，必须走 Admin API。
-// Edge Function admin-auth 内部用 service_role key 调用 Admin API，前端只需携带登录态 JWT。
 async function invokeAdminAuth(action: string, params: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke("admin-auth", {
     body: { action, ...params },
   });
   if (error) {
-    // Supabase Functions SDK 在非 2xx 时返回 FunctionsHttpError / FunctionsFetchError
-    // 优先提取函数返回的 JSON 错误
     if ((error as any)?.context && typeof (error as any).context.json === "function") {
       try {
         const body = await (error as any).context.json();
@@ -196,20 +210,13 @@ export async function getSession() {
   return supabase.auth.getSession();
 }
 
-// ============ 公开抄表（免登录） ============
-export async function fetchDeviceInfo(deviceNo: string): Promise<{
-  device_no: string;
-  device_name: string;
-  meter_no: string;
-  reader_name: string | null;
-  yesterday_reading: number | null;
-  today_submitted: boolean;
-}> {
+// ============ 抄表接口（需登录，责任人身份校验由后端 RPC 兜底） ============
+export async function fetchDeviceInfo(deviceNo: string): Promise<DeviceInfo> {
   const { data, error } = await supabase.rpc("device_public_info", {
     p_device_no: deviceNo,
   });
   if (error) throw error;
-  return data as any;
+  return data as DeviceInfo;
 }
 
 export async function submitReading(
@@ -222,6 +229,20 @@ export async function submitReading(
   });
   if (error) throw error;
   return data as SubmitResult;
+}
+
+export async function updateReading(
+  deviceNo: string,
+  readDate: string,
+  value: number
+): Promise<UpdateResult> {
+  const { data, error } = await supabase.rpc("update_reading", {
+    p_device_no: deviceNo,
+    p_read_date: readDate,
+    p_reading_value: value,
+  });
+  if (error) throw error;
+  return data as UpdateResult;
 }
 
 // ============ 后台（需登录，权限由 RPC 内 RLS + is_admin 控制） ============
@@ -256,7 +277,8 @@ export async function updateDevice(
     meter_no: string;
     multiplier: number;
     reader_id?: string | null;
-  }): Promise<void> {
+  }
+): Promise<void> {
   const { error } = await supabase.rpc("update_device", {
     p_id: id,
     p_device_no: v.device_no,
@@ -304,7 +326,6 @@ export async function updateProfile(
 }
 
 export async function deleteProfile(id: string) {
-  // 通过 Edge Function 同时删除 auth.users 和 profiles（级联）
   await invokeAdminAuth("delete_user", { id });
 }
 

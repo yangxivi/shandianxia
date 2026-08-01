@@ -1,21 +1,43 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, Form, Input, Typography, App } from "antd";
 import { ThunderboltOutlined, UserOutlined, LockOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
-import { login, errMsg } from "../api";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { login, errMsg, getSession } from "../api";
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
+  const [params] = useSearchParams();
   const { message } = App.useApp();
   const [form] = Form.useForm();
+
+  // 已登录则跳转
+  useEffect(() => {
+    let mounted = true;
+    getSession().then(({ data }) => {
+      if (!mounted) return;
+      if (data.session) {
+        const redirect = params.get("redirect");
+        nav(redirect || "/admin", { replace: true });
+      }
+    });
+    return () => { mounted = false; };
+  }, [nav, params]);
 
   const onFinish = async (v: { username: string; password: string }) => {
     setLoading(true);
     try {
-      await login(v.username, v.password);
+      const profile = await login(v.username, v.password);
       message.success("登录成功");
-      nav("/admin");
+      const redirect = params.get("redirect");
+      // 管理员进后台，抄表员如果有 redirect 就跳（通常是抄表页），否则进后台
+      if (redirect) {
+        nav(redirect, { replace: true });
+      } else if (profile.role === "admin") {
+        nav("/admin", { replace: true });
+      } else {
+        nav("/admin", { replace: true });
+      }
     } catch (e: any) {
       const msg = errMsg(e);
       if (msg) message.error(msg);
@@ -30,7 +52,7 @@ export default function Login() {
         <div style={{ textAlign: "center", marginBottom: 20 }}>
           <ThunderboltOutlined style={{ fontSize: 40, color: "#1677ff" }} />
           <Typography.Title level={3} style={{ margin: "10px 0 0" }}>闪电侠 · 电费管理</Typography.Title>
-          <Typography.Text type="secondary">后台登录（管理员 / 抄表员）</Typography.Text>
+          <Typography.Text type="secondary">抄表员 / 管理员 登录</Typography.Text>
         </div>
         <Form form={form} onFinish={onFinish} size="large">
           <Form.Item name="username" rules={[{ required: true, message: "请输入账号" }]}>
