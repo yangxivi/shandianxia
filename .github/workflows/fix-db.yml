@@ -1,0 +1,40 @@
+# ============================================================
+# 闪电侠 · SQL 修复部署（手动触发，仅执行 init_database.sql）
+# 用于部署 RPC 函数修复，不运行 seed.mjs（避免重置种子数据）
+# ============================================================
+name: Fix DB Schema
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 校验密钥
+        run: |
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
+            echo "::error::缺少 Secrets：请配置 SUPABASE_URL / SUPABASE_ACCESS_TOKEN"
+            exit 1
+          fi
+
+      - name: 执行 init_database.sql（Management API database/query）
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          REF=$(echo "$SUPABASE_URL" | sed -E 's#^https://##; s#\.supabase\.co$##')
+          echo "→ project ref = $REF"
+          jq -Rs '{query: .}' supabase/init_database.sql > /tmp/sql_body.json
+          curl -fsS -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            --data @/tmp/sql_body.json
+          echo ""
+          echo "✅ init_database.sql 执行完成"

@@ -515,7 +515,9 @@ BEGIN
     IF NOT FOUND THEN
         RAISE EXCEPTION '账号不存在';
     END IF;
-    RETURN QUERY SELECT id, username, display_name, role FROM public.profiles WHERE id = p_id;
+    -- 用表别名限定列名，避免与 RETURNS TABLE 的 id 列冲突（ambiguous column reference）
+    RETURN QUERY SELECT pr.id, pr.username, pr.display_name, pr.role
+    FROM public.profiles pr WHERE pr.id = p_id;
 END;
 $$;
 

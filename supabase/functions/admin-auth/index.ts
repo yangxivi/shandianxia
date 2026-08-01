@@ -98,7 +98,18 @@ Deno.serve(async (req) => {
           }),
         });
         const createData = await createRes.json();
-        if (!createRes.ok) return json({ error: createData.message || "创建失败" }, 400);
+        if (!createRes.ok) {
+          // 透传 Admin API 的真实错误（如 email_exists / weak_password 等）
+          const msg = createData.msg || createData.message || createData.error_description || `创建失败 (HTTP ${createRes.status})`;
+          // 友好化常见错误
+          let friendly = msg;
+          if (createData.code === "email_exists" || msg.includes("already been registered")) {
+            friendly = `用户名 ${username} 已存在（可能为历史遗留的 auth.users 记录，联系管理员清理）`;
+          } else if (createData.code === "weak_password") {
+            friendly = "密码强度不足，请使用更复杂的密码";
+          }
+          return json({ error: friendly, raw: msg, code: createData.code }, 400);
+        }
 
         // 确保 profiles 记录
         await fetch(`${baseUrl}/rest/v1/profiles`, {
