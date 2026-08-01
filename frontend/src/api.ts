@@ -1,13 +1,10 @@
 import { supabase } from "./lib/supabase";
 
-// 登录态失效时全局触发（UI 层可监听 window.onAuthExpired）
 function notifyAuthExpired(msg: string) {
   const ev = new CustomEvent("auth-expired", { detail: msg });
   window.dispatchEvent(ev);
 }
 
-// 判断是否为"请求被取消"导致的 Failed to fetch（浏览器导航/StrictMode/组件卸载时触发）
-// 这类错误对用户无意义，应静默忽略
 export function isCancelledError(e: any): boolean {
   const msg = e?.message || e?.toString?.() || "";
   if (e?.name === "AbortError") return true;
@@ -15,7 +12,6 @@ export function isCancelledError(e: any): boolean {
   return false;
 }
 
-// 统一错误提取（supabase 异常文本即业务提示）
 export function errMsg(e: any): string {
   const msg = e?.message || e?.error_description || e?.toString?.() || "操作失败";
   if (isCancelledError(e)) return "";
@@ -31,7 +27,6 @@ export function errMsg(e: any): string {
   return msg;
 }
 
-// ============ 类型 ============
 export interface Device {
   id: string;
   device_no: string;
@@ -118,7 +113,6 @@ export interface DeviceInfo {
   recent_readings: RecentReading[];
 }
 
-// ============ 认证（Supabase Auth，账号映射为 xxx@sd.com） ============
 const EMAIL_DOMAIN = "sd.com";
 const LEGACY_DOMAIN = "sd.local";
 const toEmail = (username: string, domain: string = EMAIL_DOMAIN) =>
@@ -157,7 +151,6 @@ export async function login(username: string, password: string): Promise<Profile
   throw lastError;
 }
 
-// ============ 账号管理（通过 Edge Function 调用 Auth Admin API） ============
 async function invokeAdminAuth(action: string, params: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke("admin-auth", {
     body: { action, ...params },
@@ -171,7 +164,7 @@ async function invokeAdminAuth(action: string, params: Record<string, unknown>) 
           if (msg.includes("登录已过期") || msg.includes("session")) notifyAuthExpired(msg);
           throw new Error(msg);
         }
-      } catch { /* 忽略 JSON 解析错误 */ }
+      } catch { /* ignore */ }
     }
     if (error?.message?.includes("登录已过期") || error?.message?.includes("session")) {
       notifyAuthExpired(error.message);
@@ -210,7 +203,6 @@ export async function getSession() {
   return supabase.auth.getSession();
 }
 
-// ============ 抄表接口（需登录，责任人身份校验由后端 RPC 兜底） ============
 export async function fetchDeviceInfo(deviceNo: string): Promise<DeviceInfo> {
   const { data, error } = await supabase.rpc("device_public_info", {
     p_device_no: deviceNo,
@@ -245,7 +237,14 @@ export async function updateReading(
   return data as UpdateResult;
 }
 
-// ============ 后台（需登录，权限由 RPC 内 RLS + is_admin 控制） ============
+export async function deleteReading(readingId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("delete_reading", {
+    p_reading_id: readingId,
+  });
+  if (error) throw error;
+  return data as boolean;
+}
+
 export async function listDevices(): Promise<Device[]> {
   const { data, error } = await supabase.rpc("list_devices");
   if (error) throw error;

@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import {
-  App, Button, Card, DatePicker, Input, Select, Space, Table, Typography,
+  App, Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Typography,
 } from "antd";
-import { DownloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { DeleteOutlined, DownloadOutlined, EditOutlined, SearchOutlined } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 import * as XLSX from "xlsx";
-import { listReadings, listDevices, listProfiles, Device, Reading, Profile, errMsg } from "../../api";
-
+import {
+  listReadings, listDevices, listProfiles, updateReading, deleteReading,
+  Device, Reading, Profile, errMsg,
+} from "../../api";
 const { RangePicker } = DatePicker;
 
 export default function Readings() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [rows, setRows] = useState<Reading[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [users, setUsers] = useState<Profile[]>([]);
@@ -20,15 +22,19 @@ export default function Readings() {
   const [meterNo, setMeterNo] = useState<string>("");
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
   const [readerId, setReaderId] = useState<string | undefined>();
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editRecord, setEditRecord] = useState<Reading | null>(null);
+  const [editForm] = Form.useForm();
+
   let mounted = true;
 
   const load = async () => {
     setLoading(true);
     try {
       const r = await listReadings({
-        month,
-        device_id: deviceId,
-        meter_no: meterNo || undefined,
+        month, device_id: deviceId, meter_no: meterNo || undefined,
         reader_id: readerId,
         start: range ? range[0].format("YYYY-MM-DD") : undefined,
         end: range ? range[1].format("YYYY-MM-DD") : undefined,
@@ -54,21 +60,60 @@ export default function Readings() {
 
   const exportXlsx = (name: string) => {
     const data = rows.map((r) => ({
-      日期: r.read_date,
-      设备: r.device_no,
-      电表: r.meter_no,
-      昨日读数: r.yesterday_value,
-      当日读数: r.reading_value,
-      倍率: r.multiplier,
-      每日电量_度: r.daily_kwh,
-      单价: r.unit_price,
-      每日电费_元: r.daily_fee,
+      日期: r.read_date, 设备: r.device_no, 电表: r.meter_no,
+      昨日读数: r.yesterday_value, 当日读数: r.reading_value, 倍率: r.multiplier,
+      每日电量_度: r.daily_kwh, 单价: r.unit_price, 每日电费_元: r.daily_fee,
       抄表人: r.reader_name || "",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "台账");
     XLSX.writeFile(wb, name);
+  };
+
+  const handleEdit = (record: Reading) => {
+    setEditRecord(record);
+    editForm.setFieldsValue({
+      reading_value: record.reading_value,
+    });
+    setEditOpen(true);
+  };
+
+  const handleEditSubmit = async (v: { reading_value: number }) => {
+    if (!editRecord) return;
+    setEditLoading(true);
+    try {
+      await updateReading(editRecord.device_no, editRecord.read_date, v.reading_value);
+      message.success("修改成功");
+      setEditOpen(false);
+      editForm.resetFields();
+      load();
+    } catch (e: any) {
+      const msg = errMsg(e);
+      if (msg) message.error(msg);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDelete = (record: Reading) => {
+    modal.confirm({
+      title: "确认删除该抄表记录？",
+      content: `日期 ${record.read_date}，设备 ${record.device_no}，读数 ${record.reading_value} 度`,
+      okText: "删除",
+      okType: "danger",
+      cancelText: "取消",
+      onOk: async () => {
+        try {
+          await deleteReading(record.id);
+          message.success("已删除");
+          load();
+        } catch (e: any) {
+          const msg = errMsg(e);
+          if (msg) message.error(msg);
+        }
+      },
+    });
   };
 
   const columns = [
@@ -82,6 +127,33 @@ export default function Readings() {
     { title: "单价", dataIndex: "unit_price" },
     { title: "每日电费(元)", dataIndex: "daily_fee" },
     { title: "抄表人", dataIndex: "reader_name" },
+    {
+      title: "操作",
+      key: "action",
+      width: 130,
+      fixed: "right" as const,
+      render: (_: any, record: Reading) => (
+        <Space size={4}>
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+          >
+            编辑
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDelete(record)}
+          >
+            删除
+          </Button>
+        </Space>
+      ),
+    },
   ];
 
   return (
@@ -103,10 +175,37 @@ export default function Readings() {
         </Button>
       </Space>
       <Table rowKey="id" loading={loading} dataSource={rows} columns={columns} size="small"
-        scroll={{ x: 900 }} pagination={{ pageSize: 15 }} />
+        scroll={{ x: 1100 }} pagination={{ pageSize: 15 }} />
       <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-        筛选支持按设备、电表编号、日期区间、月份、抄表人精准查询；导出在浏览器端生成 .xlsx。
+        筛选支持按设备、电表编号、日期区间、月份、抄表人精准查询；导出在浏览器端生成 .xlsx。管理员可编辑和删除记录。
       </Typography.Paragraph>
+
+      <Modal
+        title="编辑抄表记录"
+        open={editOpen}
+        onCancel={() => setEditOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+          设备：{editRecord?.device_no}　日期：{editRecord?.read_date}
+        </Typography.Paragraph>
+        <Form form={editForm} onFinish={handleEditSubmit} size="large">
+          <Form.Item
+            label="当日电表读数"
+            name="reading_value"
+            rules={[
+              { required: true, message: "请填写读数" },
+              { type: "number", min: 0.0001, message: "读数必须为正数" },
+            ]}
+          >
+            <InputNumber style={{ width: "100%" }} min={0} step={0.01} precision={2} addonAfter="度" />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" block loading={editLoading}>
+            确认修改
+          </Button>
+        </Form>
+      </Modal>
     </Card>
   );
 }
