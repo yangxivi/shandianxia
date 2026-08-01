@@ -11,21 +11,24 @@ import Summary from "./pages/admin/Summary";
 import QrPage from "./pages/admin/QrPage";
 import { supabase } from "./lib/supabase";
 
-/*
- * 只保留唯一一个 <AntApp>（在 main.tsx 中），避免消息上下文嵌套。
- * 这里直接通过 AntApp.useApp() 访问外层上下文，不要再包一层 <AntApp>。
- */
-
 function RequireAuth({ children }: { children: JSX.Element }) {
   const [ready, setReady] = useState(false);
   const [ok, setOk] = useState(false);
   let mounted = true;
-
   useEffect(() => {
     mounted = true;
+    let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      if (mounted) { setOk(false); setReady(true); }
+    }, 5000);
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
+      if (timer) { clearTimeout(timer); timer = null; }
       setOk(!!data.session);
+      setReady(true);
+    }).catch(() => {
+      if (!mounted) return;
+      if (timer) { clearTimeout(timer); timer = null; }
+      setOk(false);
       setReady(true);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
@@ -33,10 +36,10 @@ function RequireAuth({ children }: { children: JSX.Element }) {
     });
     return () => {
       mounted = false;
+      if (timer) clearTimeout(timer);
       sub.subscription.unsubscribe();
     };
   }, []);
-
   if (!ready) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
@@ -47,21 +50,23 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   if (!ok) return <Navigate to="/login" replace />;
   return children;
 }
-
 function RequireAdmin({ children }: { children: JSX.Element }) {
   const [ready, setReady] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const { message } = AntApp.useApp();
   let mounted = true;
-
   useEffect(() => {
     mounted = true;
+    let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      if (mounted) { setIsAdmin(false); setReady(true); }
+    }, 8000);
     (async () => {
       try {
         const { data: sdata } = await supabase.auth.getSession();
         if (!mounted) return;
         const uid = sdata.session?.user?.id;
         if (!uid) {
+          if (timer) { clearTimeout(timer); timer = null; }
           setReady(true);
           return;
         }
@@ -71,6 +76,7 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
           .eq("id", uid)
           .single();
         if (!mounted) return;
+        if (timer) { clearTimeout(timer); timer = null; }
         if (error || !data) {
           setReady(true);
           return;
@@ -79,13 +85,16 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
         setReady(true);
       } catch {
         if (mounted) {
+          if (timer) { clearTimeout(timer); timer = null; }
           setReady(true);
         }
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
-
   if (!ready) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
@@ -99,15 +108,12 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
   }
   return children;
 }
-
 function AuthListener({ children }: { children: JSX.Element }) {
   const nav = useNavigate();
   const { message } = AntApp.useApp();
-
   useEffect(() => {
     const handler = (e: Event) => {
       const msg = (e as CustomEvent).detail || "登录已过期";
-      // 先退出登录，再跳转
       supabase.auth.signOut().finally(() => {
         localStorage.clear();
         message.error(msg + "，请重新登录");
@@ -117,25 +123,33 @@ function AuthListener({ children }: { children: JSX.Element }) {
     window.addEventListener("auth-expired", handler);
     return () => window.removeEventListener("auth-expired", handler);
   }, [nav, message]);
-
   return children;
 }
-
 export default function App() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   let mounted = true;
-
   useEffect(() => {
     mounted = true;
+    let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      if (mounted) { setAuthed(false); setReady(true); }
+    }, 5000);
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
+      if (timer) { clearTimeout(timer); timer = null; }
       setAuthed(!!data.session);
       setReady(true);
+    }).catch(() => {
+      if (!mounted) return;
+      if (timer) { clearTimeout(timer); timer = null; }
+      setAuthed(false);
+      setReady(true);
     });
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
-
   if (!ready) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
@@ -143,7 +157,6 @@ export default function App() {
       </div>
     );
   }
-
   return (
     <AuthListener>
       <Routes>

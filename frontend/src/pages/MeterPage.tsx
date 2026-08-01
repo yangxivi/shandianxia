@@ -17,34 +17,55 @@ export default function MeterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<{ kwh: number; fee: number; date: string } | null>(null);
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [authError, setAuthError] = useState<string>("");
+  const [permError, setPermError] = useState<string>("");
   const [editOpen, setEditOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editForm] = Form.useForm();
   const [form] = Form.useForm();
   const readingValue = Form.useWatch("reading_value", form);
 
-  // 以东八区日期为准
   const today = useMemo(
     () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" }),
     []
   );
 
-  // 检查登录状态
   useEffect(() => {
     let mounted = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const check = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setAuthed(!!data.session);
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        if (timer) { clearTimeout(timer); timer = null; }
+        setAuthed(!!data.session);
+      } catch (e: any) {
+        if (!mounted) return;
+        if (timer) { clearTimeout(timer); timer = null; }
+        const msg = errMsg(e);
+        setAuthError(msg || "登录状态检查失败");
+        setAuthed(false);
+      }
     };
     check();
+    timer = setTimeout(() => {
+      if (mounted) {
+        setAuthError("网络连接超时，请检查网络后重试");
+        setAuthed(false);
+      }
+    }, 5000);
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      if (mounted) setAuthed(!!s);
+      if (!mounted) return;
+      if (timer) { clearTimeout(timer); timer = null; }
+      setAuthed(!!s);
     });
-    return () => { mounted = false; sub.subscription.unsubscribe(); };
+    return () => {
+      mounted = false;
+      if (timer) clearTimeout(timer);
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
-  // 已登录且有设备号时加载数据
   useEffect(() => {
     if (authed !== true || !deviceNo) {
       setLoading(false);
@@ -52,14 +73,18 @@ export default function MeterPage() {
     }
     let mounted = true;
     setLoading(true);
+    setPermError("");
     fetchDeviceInfo(deviceNo)
       .then((d) => { if (mounted) setInfo(d); })
       .catch((e) => {
         const msg = errMsg(e);
-        if (msg && mounted) message.error(msg);
-        // 未登录错误，跳转登录
-        if (msg?.includes("登录") || msg?.includes("未登录")) {
-          if (mounted) setAuthed(false);
+        if (!mounted) return;
+        if (msg?.includes("责任人") || msg?.includes("无法填报") || msg?.includes("无法修改")) {
+          setPermError(msg);
+        } else if (msg?.includes("登录") || msg?.includes("未登录")) {
+          setAuthed(false);
+        } else if (msg) {
+          message.error(msg);
         }
       })
       .finally(() => { if (mounted) setLoading(false); });
@@ -105,7 +130,6 @@ export default function MeterPage() {
       message.success(`修改成功，还可修改 ${r.remaining_edits} 次`);
       setEditOpen(false);
       editForm.resetFields();
-      // 刷新数据
       setLoading(true);
       const d = await fetchDeviceInfo(deviceNo);
       setInfo(d);
@@ -118,7 +142,6 @@ export default function MeterPage() {
     }
   };
 
-  // 近七日表格数据（按日期倒序）
   const historyData = useMemo(() => {
     if (!info?.recent_readings) return [];
     return [...info.recent_readings].sort((a, b) => b.read_date.localeCompare(a.read_date));
@@ -144,6 +167,14 @@ export default function MeterPage() {
           <Typography.Paragraph type="secondary">
             抄表页需要抄表员账号密码登录后才能填写
           </Typography.Paragraph>
+          {authError && (
+            <Alert
+              type="error"
+              showIcon
+              message={authError}
+              style={{ marginBottom: 16, textAlign: "left" }}
+            />
+          )}
           <Button type="primary" size="large" block onClick={() => {
             const redirect = encodeURIComponent(window.location.pathname + window.location.search);
             nav(`/login?redirect=${redirect}`, { replace: true });
@@ -165,6 +196,34 @@ export default function MeterPage() {
 
   if (!deviceNo) {
     return <Result status="warning" title="无效的二维码" subTitle="请扫描电表专属二维码进入抄表页面。" />;
+  }
+
+  if (permError) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "#f0f2f5" }}>
+        <Card style={{ width: "100%", maxWidth: 420 }}>
+          <Result
+            status="warning"
+            icon={<ThunderboltOutlined style={{ color: "#faad14" }} />}
+            title="无此设备操作权限"
+            subTitle={permError}
+          />
+          <Alert
+            type="info"
+            showIcon
+            message="说明"
+            description="每台电表已绑定专属抄表员账号，您只能使用自己账号所绑定的电表二维码进行抄表。如账号绑定有误，请联系管理员在后台调整。"
+            style={{ marginBottom: 16 }}
+          />
+          <Space>
+            <Button onClick={handleLogout}>切换账号</Button>
+            <Button type="primary" onClick={() => { setPermError(""); setLoading(true); fetchDeviceInfo(deviceNo).then((d) => setInfo(d)).catch(() => {}).finally(() => setLoading(false)); }}>
+              重新尝试
+            </Button>
+          </Space>
+        </Card>
+      </div>
+    );
   }
 
   if (done) {
@@ -192,7 +251,6 @@ export default function MeterPage() {
               ] : undefined
             }
           />
-          {/* 近七日表格 */}
           <Card title="近七日读数" size="small" style={{ marginTop: 16 }}>
             <Table
               dataSource={historyData}
@@ -296,7 +354,6 @@ export default function MeterPage() {
         </Typography.Paragraph>
       </Card>
 
-      {/* 近七日表格 */}
       <Card title="近七日读数" size="small" style={{ width: "100%", maxWidth: 460, marginTop: 16 }}>
         <Table
           dataSource={historyData}

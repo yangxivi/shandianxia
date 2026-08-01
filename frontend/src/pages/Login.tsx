@@ -11,17 +11,27 @@ export default function Login() {
   const { message } = App.useApp();
   const [form] = Form.useForm();
 
-  // 已登录则跳转
   useEffect(() => {
     let mounted = true;
-    getSession().then(({ data }) => {
-      if (!mounted) return;
-      if (data.session) {
-        const redirect = params.get("redirect");
-        nav(redirect || "/admin", { replace: true });
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const check = async () => {
+      try {
+        const { data } = await getSession();
+        if (!mounted) return;
+        if (timer) { clearTimeout(timer); timer = null; }
+        if (data.session) {
+          const redirect = params.get("redirect");
+          nav(redirect || "/admin", { replace: true });
+        }
+      } catch {
       }
-    });
-    return () => { mounted = false; };
+    };
+    check();
+    timer = setTimeout(() => {}, 3000);
+    return () => {
+      mounted = false;
+      if (timer) clearTimeout(timer);
+    };
   }, [nav, params]);
 
   const onFinish = async (v: { username: string; password: string }) => {
@@ -30,7 +40,6 @@ export default function Login() {
       const profile = await login(v.username, v.password);
       message.success("登录成功");
       const redirect = params.get("redirect");
-      // 管理员进后台，抄表员如果有 redirect 就跳（通常是抄表页），否则进后台
       if (redirect) {
         nav(redirect, { replace: true });
       } else if (profile.role === "admin") {
