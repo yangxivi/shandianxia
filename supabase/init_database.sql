@@ -1,6 +1,7 @@
 -- ============================================================
 -- 闪电侠 · 电费管理系统 - Supabase 初始化脚本
 -- 在 Supabase 控制台 SQL Editor 中一次性执行
+-- 版本: 2026-08-01 修复 update_profile ambiguous column
 -- 架构：纯静态前端(GitHub Pages) + Supabase(Postgres + Auth + RLS + RPC)
 -- 前端通过 supabase-js 直连，公开抄表走 anon 可调用的 RPC，其余走鉴权 RPC
 -- ============================================================
