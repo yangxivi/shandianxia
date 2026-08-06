@@ -4,5 +4,5 @@ window.__ENV__ = {
   VITE_SUPABASE_URL: 'https://dpbtqwfbprartiogydqg.supabase.co',
   VITE_SUPABASE_ANON_KEY: 'sb_publishable_m6iKgdv8VRGdx1KXAzWpSQ_BCDocpl_',
   // 二维码扫码落地地址（HashRouter，注意带 #）
-  PUBLIC_BASE_URL: 'https://yangxivi.github.io/shandianxia/#',
+  PUBLIC_BASE_URL: 'https://sdx.xiviai.cn/#',
 };
